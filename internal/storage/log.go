@@ -3,7 +3,9 @@ package storage
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
+	"time"
 )
 
 var partitionLogOpenFile = os.OpenFile
@@ -37,4 +39,33 @@ func closePartitionLog(log *partitionLog) error {
 		return fmt.Errorf("close partition log: %w", err)
 	}
 	return nil
+}
+
+// appendRecord writes one record and advances the partition's offset index.
+func appendRecord(log *partitionLog, key *string, value string) (int64, error) {
+	if log == nil || log.file == nil {
+		return 0, errors.New("append partition record: nil log or file")
+	}
+
+	position, err := log.file.Seek(0, io.SeekEnd)
+	if err != nil {
+		return 0, fmt.Errorf("seek partition log end: %w", err)
+	}
+
+	offset := int64(len(log.positions))
+	encoded, err := partitionRecordEncoder(Record{
+		Offset:    offset,
+		Key:       key,
+		Value:     value,
+		Timestamp: time.Now().UnixMilli(),
+	})
+	if err != nil {
+		return 0, fmt.Errorf("encode partition record: %w", err)
+	}
+	if _, err := log.file.Write(encoded); err != nil {
+		return 0, fmt.Errorf("append partition record: %w", err)
+	}
+
+	log.positions = append(log.positions, position)
+	return offset, nil
 }
