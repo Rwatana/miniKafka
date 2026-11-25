@@ -11,7 +11,7 @@ func TestLatestOffset(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer closePartitionLog(log)
+		defer ClosePartitionLog(log)
 		got, err := latestOffset(log)
 		if err != nil || got != 0 {
 			t.Errorf("latestOffset() = (%d, %v), want (0, nil)", got, err)

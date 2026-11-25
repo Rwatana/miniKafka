@@ -139,7 +139,7 @@ func openTestPartitionLog(t *testing.T, contents string) *PartitionLog {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = closePartitionLog(log) })
+	t.Cleanup(func() { _ = ClosePartitionLog(log) })
 	return log
 }
 

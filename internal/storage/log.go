@@ -35,8 +35,8 @@ func OpenPartitionLog(path string) (*PartitionLog, error) {
 	return &partitionLog{file: file, positions: positions}, nil
 }
 
-// closePartitionLog releases the file owned by a partition log.
-func closePartitionLog(log *partitionLog) error {
+// ClosePartitionLog releases the file owned by a partition log.
+func ClosePartitionLog(log *PartitionLog) error {
 	if log == nil || log.file == nil {
 		return nil
 	}

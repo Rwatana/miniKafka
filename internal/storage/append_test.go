@@ -63,7 +63,7 @@ func TestAppendRecord(t *testing.T) {
 		if !reflect.DeepEqual(log.positions, wantPositions) {
 			t.Errorf("positions = %v, want %v", log.positions, wantPositions)
 		}
-		if err := closePartitionLog(log); err != nil {
+		if err := ClosePartitionLog(log); err != nil {
 			t.Fatal(err)
 		}
 
@@ -71,7 +71,7 @@ func TestAppendRecord(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer closePartitionLog(reopened)
+		defer ClosePartitionLog(reopened)
 		if !reflect.DeepEqual(reopened.positions, wantPositions) {
 			t.Errorf("recovered positions = %v, want %v", reopened.positions, wantPositions)
 		}
@@ -110,7 +110,7 @@ func TestAppendRecord(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer closePartitionLog(log)
+		defer ClosePartitionLog(log)
 		originalEncoder := partitionRecordEncoder
 		partitionRecordEncoder = func(Record) ([]byte, error) { return nil, errors.New("encode failed") }
 		defer func() { partitionRecordEncoder = originalEncoder }()
