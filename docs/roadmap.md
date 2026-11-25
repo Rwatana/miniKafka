@@ -34,7 +34,7 @@ by its function, but must not add a second production function.
 | 3 | `rebuildIndex` | Scan a partition log and map offsets to byte positions. |
 | 4 | `openPartitionLog` | Open or create a partition log and recover its next offset. |
 | 5 | `closePartitionLog` | Release the file resource owned by one partition log. |
-| 6 | `appendRecord` | Append one record durably and assign the next sequential offset. |
+| 6 | `appendRecord` | Append one record and assign the next sequential offset. |
 | 7 | `readFromOffset` | Seek via the index and return ordered records from an inclusive offset. |
 | 8 | `produceHandler` | Implement `POST /produce` for a topic and partition. |
 | 9 | `consumeHandler` | Implement `GET /consume` with an explicit or committed starting offset. |

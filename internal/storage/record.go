@@ -17,6 +17,8 @@ type Record struct {
 	Timestamp int64   `json:"timestamp"`
 }
 
+var partitionRecordEncoder = encodeRecord
+
 // encodeRecord serializes one record as newline-delimited JSON.
 func encodeRecord(record Record) ([]byte, error) {
 	encoded, err := json.Marshal(record)
