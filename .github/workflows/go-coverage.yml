@@ -1,0 +1,42 @@
+name: Go coverage
+
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+      - name: Detect Go module
+        id: module
+        run: if [[ -f go.mod ]]; then echo "exists=true" >> "$GITHUB_OUTPUT"; else echo "exists=false" >> "$GITHUB_OUTPUT"; fi
+      - name: Set up Go
+        if: steps.module.outputs.exists == 'true'
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Measure and validate statement coverage
+        if: steps.module.outputs.exists == 'true'
+        run: |
+          go test ./... -coverprofile=coverage.out
+          uncovered=$(awk 'NR > 1 && $NF == 0 { print $1 }' coverage.out)
+          if [[ -n "$uncovered" ]]; then
+            echo "Unexecuted statement blocks found:"
+            echo "$uncovered"
+            exit 1
+          fi
+          coverage=$(go tool cover -func=coverage.out | awk '$1 == "total:" { print $3 }')
+          echo "Go statement coverage: **$coverage**" >> "$GITHUB_STEP_SUMMARY"
+          if [[ "$coverage" != "100.0%" ]]; then
+            echo "Go statement coverage must be 100.0%; found $coverage."
+            exit 1
+          fi
