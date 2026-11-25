@@ -13,7 +13,7 @@ import (
 func TestAppendRecord(t *testing.T) {
 	t.Run("assigns offsets and persists records", func(t *testing.T) {
 		path := filepath.Join(t.TempDir(), "topic__0.log")
-		log, err := openPartitionLog(path)
+		log, err := OpenPartitionLog(path)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -67,7 +67,7 @@ func TestAppendRecord(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		reopened, err := openPartitionLog(path)
+		reopened, err := OpenPartitionLog(path)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -84,13 +84,13 @@ func TestAppendRecord(t *testing.T) {
 	})
 
 	t.Run("nil file", func(t *testing.T) {
-		if offset, err := appendRecord(&partitionLog{}, nil, "value"); offset != 0 || err == nil {
+		if offset, err := appendRecord(&PartitionLog{}, nil, "value"); offset != 0 || err == nil {
 			t.Errorf("appendRecord(empty log) = (%d, %v), want error", offset, err)
 		}
 	})
 
 	t.Run("seek failure", func(t *testing.T) {
-		log, err := openPartitionLog(filepath.Join(t.TempDir(), "seek.log"))
+		log, err := OpenPartitionLog(filepath.Join(t.TempDir(), "seek.log"))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -106,7 +106,7 @@ func TestAppendRecord(t *testing.T) {
 	})
 
 	t.Run("encoding failure", func(t *testing.T) {
-		log, err := openPartitionLog(filepath.Join(t.TempDir(), "encode.log"))
+		log, err := OpenPartitionLog(filepath.Join(t.TempDir(), "encode.log"))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -132,7 +132,7 @@ func TestAppendRecord(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		log := &partitionLog{file: file}
+		log := &PartitionLog{file: file}
 		defer file.Close()
 		if _, err := appendRecord(log, nil, "value"); err == nil {
 			t.Fatal("appendRecord() error = nil, want write error")

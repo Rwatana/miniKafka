@@ -7,7 +7,7 @@ import (
 
 func TestLatestOffset(t *testing.T) {
 	t.Run("empty log", func(t *testing.T) {
-		log, err := openPartitionLog(filepath.Join(t.TempDir(), "empty.log"))
+		log, err := OpenPartitionLog(filepath.Join(t.TempDir(), "empty.log"))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -35,7 +35,7 @@ func TestLatestOffset(t *testing.T) {
 		if got, err := latestOffset(nil); got != 0 || err == nil {
 			t.Errorf("latestOffset(nil) = (%d, %v), want error", got, err)
 		}
-		if got, err := latestOffset(&partitionLog{}); got != 0 || err == nil {
+		if got, err := latestOffset(&PartitionLog{}); got != 0 || err == nil {
 			t.Errorf("latestOffset(empty log) = (%d, %v), want error", got, err)
 		}
 	})
