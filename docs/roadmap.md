@@ -38,15 +38,16 @@ by its function, but must not add a second production function.
 | 7 | `latestOffset` | Return the next offset to write from the number of indexed records. |
 | 8 | `readFromOffset` | Seek via the index and return ordered records from an inclusive offset. |
 | 9 | `Broker.Produce` | Select/cache a topic partition and delegate an append to storage. |
-| 10 | `produceHandler` | Implement `POST /produce` for a topic and partition. |
-| 11 | `consumeHandler` | Implement `GET /consume` with an explicit or committed starting offset. |
-| 12 | `commitOffset` | Add the required SQL table with composite key `(consumer_group, topic, partition)` and atomically insert or update a committed position. |
-| 13 | `getCommittedOffset` | Load a group's position for a topic partition. |
-| 14 | `topicsHandler` | Implement `GET /topics` from the partitions present on disk. |
-| 15 | `calculateLag` | Calculate latest offset minus committed position per partition. |
-| 16 | `lagHandler` | Implement `GET /lag` using committed offsets and partition log state. |
-| 17 | `dashboardHandler` | Render the dashboard shell; its static client reads topics and lag through the broker API. |
-| 18 | `main` | Wire the broker, file logs, PostgreSQL, HTTP routes, and dashboard. |
+| 10 | `Broker.Consume` | Select a partition and delegate a bounded read to storage. |
+| 11 | `produceHandler` | Implement `POST /produce` for a topic and partition. |
+| 12 | `consumeHandler` | Implement `GET /consume` with an explicit or committed starting offset. |
+| 13 | `commitOffset` | Add the required SQL table with composite key `(consumer_group, topic, partition)` and atomically insert or update a committed position. |
+| 14 | `getCommittedOffset` | Load a group's position for a topic partition. |
+| 15 | `topicsHandler` | Implement `GET /topics` from the partitions present on disk. |
+| 16 | `calculateLag` | Calculate latest offset minus committed position per partition. |
+| 17 | `lagHandler` | Implement `GET /lag` using committed offsets and partition log state. |
+| 18 | `dashboardHandler` | Render the dashboard shell; its static client reads topics and lag through the broker API. |
+| 19 | `main` | Wire the broker, file logs, PostgreSQL, HTTP routes, and dashboard. |
 
 ## First end-to-end milestone
 
