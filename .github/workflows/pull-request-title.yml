@@ -1,0 +1,27 @@
+name: Pull Request title
+
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+
+permissions:
+  contents: read
+
+jobs:
+  title:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+      - name: Validate Pull Request title prefix
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          valid=false
+          while IFS= read -r prefix; do
+            if [[ "$PR_TITLE" == "[$prefix] "* ]]; then valid=true; break; fi
+          done < <(sed -n 's/^  - //p' hack/prefix.yml)
+          if [[ "$valid" != "true" ]]; then
+            echo "Use a title prefix from hack/prefix.yml."
+            exit 1
+          fi

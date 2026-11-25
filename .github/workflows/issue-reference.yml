@@ -1,0 +1,28 @@
+name: Pull Request issue reference
+
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+
+permissions:
+  contents: read
+
+jobs:
+  issue-reference:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate Issue Number section
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          if [[ ! "$HEAD_REF" =~ ^feature/#([0-9]+)_[a-z0-9]+(_[a-z0-9]+)*$ ]]; then
+            echo "Cannot determine Issue number from branch name."
+            exit 1
+          fi
+          issue_number="${BASH_REMATCH[1]}"
+          if ! grep -Eq '^## Issue Number[[:space:]]*$' <<< "$PR_BODY" ||
+             ! grep -Eq "^#${issue_number}[[:space:]]*$" <<< "$PR_BODY"; then
+            echo "PR body must contain ## Issue Number and #${issue_number}."
+            exit 1
+          fi
