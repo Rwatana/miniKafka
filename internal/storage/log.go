@@ -117,3 +117,11 @@ func readFromOffset(log *partitionLog, fromOffset int64, max int) ([]Record, err
 	}
 	return records, nil
 }
+
+// latestOffset returns the next offset that would be assigned to a record.
+func latestOffset(log *partitionLog) (int64, error) {
+	if log == nil || log.file == nil {
+		return 0, errors.New("get latest partition offset: nil log or file")
+	}
+	return int64(len(log.positions)), nil
+}
