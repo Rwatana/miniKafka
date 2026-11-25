@@ -1,6 +1,8 @@
 package storage
 
 import (
+	"bufio"
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -68,4 +70,50 @@ func appendRecord(log *partitionLog, key *string, value string) (int64, error) {
 
 	log.positions = append(log.positions, position)
 	return offset, nil
+}
+
+// readFromOffset reads at most max log lines starting at an inclusive offset.
+func readFromOffset(log *partitionLog, fromOffset int64, max int) ([]Record, error) {
+	if log == nil || log.file == nil {
+		return nil, errors.New("read partition log: nil log or file")
+	}
+	if fromOffset < 0 {
+		return nil, fmt.Errorf("read partition log: negative offset %d", fromOffset)
+	}
+	if max < 0 {
+		return nil, fmt.Errorf("read partition log: negative maximum %d", max)
+	}
+	if max == 0 || fromOffset >= int64(len(log.positions)) {
+		return []Record{}, nil
+	}
+
+	remaining := int64(len(log.positions)) - fromOffset
+	count := int64(max)
+	if count > remaining {
+		count = remaining
+	}
+	if _, err := log.file.Seek(log.positions[fromOffset], io.SeekStart); err != nil {
+		return nil, fmt.Errorf("seek partition log offset %d: %w", fromOffset, err)
+	}
+
+	reader := bufio.NewReader(log.file)
+	records := make([]Record, 0, count)
+	for lineNumber := int64(0); lineNumber < count; lineNumber++ {
+		line, err := reader.ReadBytes('\n')
+		if len(line) == 0 && errors.Is(err, io.EOF) {
+			return nil, io.ErrUnexpectedEOF
+		}
+		if err != nil && !errors.Is(err, io.EOF) {
+			return nil, fmt.Errorf("read partition log offset %d: %w", fromOffset+lineNumber, err)
+		}
+		if len(bytes.TrimSpace(line)) == 0 {
+			continue
+		}
+		record, err := decodeRecord(line)
+		if err != nil {
+			return nil, fmt.Errorf("decode partition log offset %d: %w", fromOffset+lineNumber, err)
+		}
+		records = append(records, record)
+	}
+	return records, nil
 }
