@@ -75,8 +75,8 @@ func AppendRecord(log *PartitionLog, key *string, value string) (int64, error) {
 	return offset, nil
 }
 
-// readFromOffset reads at most max log lines starting at an inclusive offset.
-func readFromOffset(log *partitionLog, fromOffset int64, max int) ([]Record, error) {
+// ReadFromOffset reads at most max log lines starting at an inclusive offset.
+func ReadFromOffset(log *PartitionLog, fromOffset int64, max int) ([]Record, error) {
 	if log == nil || log.file == nil {
 		return nil, errors.New("read partition log: nil log or file")
 	}
