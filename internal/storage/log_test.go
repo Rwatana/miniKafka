@@ -98,14 +98,14 @@ func TestOpenPartitionLog(t *testing.T) {
 
 func TestClosePartitionLog(t *testing.T) {
 	t.Run("nil log", func(t *testing.T) {
-		if err := closePartitionLog(nil); err != nil {
-			t.Errorf("closePartitionLog(nil) error = %v, want nil", err)
+		if err := ClosePartitionLog(nil); err != nil {
+			t.Errorf("ClosePartitionLog(nil) error = %v, want nil", err)
 		}
 	})
 
 	t.Run("nil file", func(t *testing.T) {
-		if err := closePartitionLog(&PartitionLog{}); err != nil {
-			t.Errorf("closePartitionLog(empty log) error = %v, want nil", err)
+		if err := ClosePartitionLog(&PartitionLog{}); err != nil {
+			t.Errorf("ClosePartitionLog(empty log) error = %v, want nil", err)
 		}
 	})
 
@@ -114,8 +114,8 @@ func TestClosePartitionLog(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := closePartitionLog(log); err != nil {
-			t.Fatalf("closePartitionLog() error = %v", err)
+		if err := ClosePartitionLog(log); err != nil {
+			t.Fatalf("ClosePartitionLog() error = %v", err)
 		}
 		if _, err := log.file.Stat(); !errors.Is(err, os.ErrClosed) {
 			t.Errorf("file stat error = %v, want closed file", err)
@@ -130,8 +130,8 @@ func TestClosePartitionLog(t *testing.T) {
 		if err := log.file.Close(); err != nil {
 			t.Fatal(err)
 		}
-		if err := closePartitionLog(log); !errors.Is(err, os.ErrClosed) {
-			t.Errorf("closePartitionLog() error = %v, want closed-file error", err)
+		if err := ClosePartitionLog(log); !errors.Is(err, os.ErrClosed) {
+			t.Errorf("ClosePartitionLog() error = %v, want closed-file error", err)
 		}
 	})
 }
