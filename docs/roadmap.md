@@ -50,7 +50,7 @@ by its function, but must not add a second production function.
 | 19 | `ListOffsetsForGroup` | Load all committed partition positions for one consumer group. |
 | 20 | `CalculateLag` | Calculate latest offset minus committed position per partition. |
 | 21 | `LagHandler.ServeHTTP` | Implement `GET /lag` using committed offsets and partition log state. |
-| 22 | `dashboardHandler` | Render the dashboard shell; its static client reads topics and lag through the broker API. |
+| 22 | `DashboardHandler.ServeHTTP` | Render the dashboard shell; its client reads topics and lag through the broker API. |
 | 23 | `main` | Wire the broker, file logs, PostgreSQL, HTTP routes, and dashboard. |
 
 ## First end-to-end milestone
