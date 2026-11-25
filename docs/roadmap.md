@@ -73,3 +73,12 @@ It has no replication, consumer-group rebalancing, retention, or compaction,
 matching the reference project's intentional scope. These are separate future
 milestones, each split into function-sized Issues and PRs. Kafka wire protocol
 compatibility is also outside this teaching project's scope.
+
+The reference feature map is now implemented through the runnable Compose
+stack. Further work extends the teaching project with Kafka-inspired storage
+and throughput concepts; those extensions are identified as such instead of
+being described as behavior from the Node reference.
+
+| Order | Function or single change | Learning outcome |
+| --- | --- | --- |
+| 27 | `AppendRecords` | Encode multiple records, preserve contiguous offsets, and append one batch with one file write. |
