@@ -1,0 +1,7 @@
+.git
+.github
+.DS_Store
+coverage.out
+coverage.html
+data
+minikafka
