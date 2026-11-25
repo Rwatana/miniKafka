@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -12,6 +13,13 @@ import (
 )
 
 var appendBrokerRecord = storage.AppendRecord
+var readBrokerDirectory = os.ReadDir
+
+// PartitionInfo identifies one topic partition found in the broker data directory.
+type PartitionInfo struct {
+	Topic     string
+	Partition int
+}
 
 type partitionKey struct {
 	topic     string
@@ -121,4 +129,39 @@ func (broker *Broker) Consume(topic string, partition int, fromOffset int64, max
 		return nil, fmt.Errorf("consume topic %q partition %d: %w", topic, partition, err)
 	}
 	return records, nil
+}
+
+// ListPartitions discovers existing topic partitions from their log filenames.
+func (broker *Broker) ListPartitions() ([]PartitionInfo, error) {
+	if broker == nil {
+		return nil, errors.New("list topic partitions: nil broker")
+	}
+	if broker.DataDir == "" {
+		return nil, errors.New("list topic partitions: empty data directory")
+	}
+	if err := os.MkdirAll(broker.DataDir, 0o700); err != nil {
+		return nil, fmt.Errorf("create broker data directory: %w", err)
+	}
+	entries, err := readBrokerDirectory(broker.DataDir)
+	if err != nil {
+		return nil, fmt.Errorf("read broker data directory: %w", err)
+	}
+
+	partitions := make([]PartitionInfo, 0)
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".log") {
+			continue
+		}
+		stem := strings.TrimSuffix(entry.Name(), ".log")
+		separator := strings.LastIndex(stem, "__")
+		if separator <= 0 {
+			continue
+		}
+		partition, err := strconv.Atoi(stem[separator+2:])
+		if err != nil || partition < 0 {
+			continue
+		}
+		partitions = append(partitions, PartitionInfo{Topic: stem[:separator], Partition: partition})
+	}
+	return partitions, nil
 }
