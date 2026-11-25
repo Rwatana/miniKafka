@@ -33,17 +33,18 @@ by its function, but must not add a second production function.
 | 2 | `decodeRecord` | Parse one record and reject malformed persisted data. |
 | 3 | `rebuildIndex` | Scan a partition log and map offsets to byte positions. |
 | 4 | `openPartitionLog` | Open or create a partition log and recover its next offset. |
-| 5 | `appendRecord` | Append one record durably and assign the next sequential offset. |
-| 6 | `readFromOffset` | Seek via the index and return ordered records from an inclusive offset. |
-| 7 | `produceHandler` | Implement `POST /produce` for a topic and partition. |
-| 8 | `consumeHandler` | Implement `GET /consume` with an explicit or committed starting offset. |
-| 9 | `commitOffset` | Add the required SQL table with composite key `(consumer_group, topic, partition)` and atomically insert or update a committed position. |
-| 10 | `getCommittedOffset` | Load a group's position for a topic partition. |
-| 11 | `topicsHandler` | Implement `GET /topics` from the partitions present on disk. |
-| 12 | `calculateLag` | Calculate latest offset minus committed position per partition. |
-| 13 | `lagHandler` | Implement `GET /lag` using committed offsets and partition log state. |
-| 14 | `dashboardHandler` | Render the dashboard shell; its static client reads topics and lag through the broker API. |
-| 15 | `main` | Wire the broker, file logs, PostgreSQL, HTTP routes, and dashboard. |
+| 5 | `closePartitionLog` | Release the file resource owned by one partition log. |
+| 6 | `appendRecord` | Append one record durably and assign the next sequential offset. |
+| 7 | `readFromOffset` | Seek via the index and return ordered records from an inclusive offset. |
+| 8 | `produceHandler` | Implement `POST /produce` for a topic and partition. |
+| 9 | `consumeHandler` | Implement `GET /consume` with an explicit or committed starting offset. |
+| 10 | `commitOffset` | Add the required SQL table with composite key `(consumer_group, topic, partition)` and atomically insert or update a committed position. |
+| 11 | `getCommittedOffset` | Load a group's position for a topic partition. |
+| 12 | `topicsHandler` | Implement `GET /topics` from the partitions present on disk. |
+| 13 | `calculateLag` | Calculate latest offset minus committed position per partition. |
+| 14 | `lagHandler` | Implement `GET /lag` using committed offsets and partition log state. |
+| 15 | `dashboardHandler` | Render the dashboard shell; its static client reads topics and lag through the broker API. |
+| 16 | `main` | Wire the broker, file logs, PostgreSQL, HTTP routes, and dashboard. |
 
 ## First end-to-end milestone
 
