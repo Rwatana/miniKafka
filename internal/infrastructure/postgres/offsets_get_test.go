@@ -15,6 +15,7 @@ import (
 var registerOffsetQueryDriver sync.Once
 var lastOffsetQuery string
 var lastOffsetArgs []driver.NamedValue
+var lastOffsetExec string
 
 type offsetQueryDriver struct{}
 
@@ -30,6 +31,21 @@ func (offsetQueryConn) Prepare(string) (driver.Stmt, error) {
 func (offsetQueryConn) Close() error { return nil }
 func (offsetQueryConn) Begin() (driver.Tx, error) {
 	return nil, errors.New("transactions are not supported")
+}
+
+func (connection offsetQueryConn) Ping(context.Context) error {
+	if connection.mode == "ping-error" {
+		return errors.New("ping failed")
+	}
+	return nil
+}
+
+func (connection offsetQueryConn) ExecContext(_ context.Context, query string, _ []driver.NamedValue) (driver.Result, error) {
+	lastOffsetExec = query
+	if connection.mode == "exec-error" {
+		return nil, errors.New("exec failed")
+	}
+	return driver.RowsAffected(1), nil
 }
 
 func (connection offsetQueryConn) QueryContext(_ context.Context, query string, args []driver.NamedValue) (driver.Rows, error) {
@@ -93,6 +109,7 @@ func openOffsetQueryDB(t *testing.T, mode string) *sql.DB {
 	t.Cleanup(func() { _ = database.Close() })
 	lastOffsetQuery = ""
 	lastOffsetArgs = nil
+	lastOffsetExec = ""
 	return database
 }
 

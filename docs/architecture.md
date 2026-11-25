@@ -36,21 +36,17 @@ consumer position rules visible while the end-to-end path is built.
 
 ```text
 cmd/minikafka
-   ↓
-internal/adapter/http ──→ internal/broker ──→ internal/storage
-                                  ↓                   ↓
-                         internal/offsets       internal/infrastructure/file
-                                  ↓
-                         internal/infrastructure/postgres
+   ├──→ internal/adapter/http ──→ internal/broker ──→ internal/storage
+   └──→ internal/infrastructure/postgres
 ```
 
 - `internal/storage` defines record encoding, the offset index, and partition
   log behavior without importing HTTP or PostgreSQL.
-- `internal/infrastructure/file` owns filesystem operations for durable logs.
+- `internal/storage` owns filesystem operations for durable partition logs and
+  keeps the byte index beside the log behavior.
 - `internal/infrastructure/postgres` owns the SQL schema and committed-offset
-  persistence.
-- `internal/broker` coordinates storage and offset operations for broker
-  behaviors.
+  persistence. The application passes its functions into HTTP handlers.
+- `internal/broker` coordinates partition operations and offset calculations.
 - `internal/adapter/http` translates HTTP requests and responses to broker
   calls.
 - `cmd/minikafka` wires dependencies and starts the process.
