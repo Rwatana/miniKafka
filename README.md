@@ -38,3 +38,10 @@ at `/`.
 
 The docs folder explains each function-sized behavior and its relationship to
 the reference MiniKafka and Kafka concepts.
+
+The PostgreSQL-backed end-to-end suite runs in CI. To run it locally, start a
+PostgreSQL database, set `DATABASE_URL`, and use:
+
+```sh
+make integration
+```
