@@ -211,3 +211,21 @@ func (broker *Broker) LatestOffset(topic string, partition int) (int64, error) {
 	}
 	return offset, nil
 }
+
+// Close releases every partition log owned by the broker and joins close errors.
+func (broker *Broker) Close() error {
+	if broker == nil {
+		return nil
+	}
+	broker.mu.Lock()
+	defer broker.mu.Unlock()
+
+	var closeErrors []error
+	for identity, log := range broker.logs {
+		if err := storage.ClosePartitionLog(log); err != nil {
+			closeErrors = append(closeErrors, fmt.Errorf("close topic %q partition %d: %w", identity.topic, identity.partition, err))
+		}
+		delete(broker.logs, identity)
+	}
+	return errors.Join(closeErrors...)
+}

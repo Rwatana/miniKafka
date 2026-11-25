@@ -53,7 +53,8 @@ by its function, but must not add a second production function.
 | 22 | `DashboardHandler.ServeHTTP` | Render the dashboard shell; its client reads topics and lag through the broker API. |
 | 23 | `NewRouter` | Register the five broker endpoints and dashboard root path. |
 | 24 | `PrepareDatabase` | Register PostgreSQL, verify the connection, and apply the offset schema at startup. |
-| 25 | `main` | Wire the broker, file logs, PostgreSQL, HTTP routes, and dashboard. |
+| 25 | `Broker.Close` | Release the broker's cached partition log handles during shutdown. |
+| 26 | `main` | Wire the broker, file logs, PostgreSQL, HTTP routes, and dashboard. |
 
 ## First end-to-end milestone
 
