@@ -11,6 +11,7 @@ import (
 )
 
 var partitionLogOpenFile = os.OpenFile
+var partitionLogWrite = func(file *os.File, data []byte) (int, error) { return file.Write(data) }
 
 type partitionLog struct {
 	file      *os.File
@@ -73,6 +74,54 @@ func AppendRecord(log *PartitionLog, key *string, value string) (int64, error) {
 
 	log.positions = append(log.positions, position)
 	return offset, nil
+}
+
+// AppendRecords writes a batch in one partition-log write and returns its offsets.
+// Input offsets and timestamps are ignored; the log assigns both fields.
+func AppendRecords(log *PartitionLog, records []Record) ([]int64, error) {
+	if log == nil || log.file == nil {
+		return nil, errors.New("append partition records: nil log or file")
+	}
+	if len(records) == 0 {
+		return []int64{}, nil
+	}
+
+	position, err := log.file.Seek(0, io.SeekEnd)
+	if err != nil {
+		return nil, fmt.Errorf("seek partition log end: %w", err)
+	}
+
+	var batch bytes.Buffer
+	positions := make([]int64, 0, len(records))
+	offsets := make([]int64, 0, len(records))
+	bytePosition := position
+	for _, input := range records {
+		offset := int64(len(log.positions) + len(offsets))
+		encoded, err := partitionRecordEncoder(Record{
+			Offset:    offset,
+			Key:       input.Key,
+			Value:     input.Value,
+			Timestamp: time.Now().UnixMilli(),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("encode partition record at offset %d: %w", offset, err)
+		}
+		positions = append(positions, bytePosition)
+		offsets = append(offsets, offset)
+		bytePosition += int64(len(encoded))
+		batch.Write(encoded)
+	}
+
+	written, writeErr := partitionLogWrite(log.file, batch.Bytes())
+	if writeErr == nil && written != batch.Len() {
+		writeErr = io.ErrShortWrite
+	}
+	if writeErr != nil {
+		rollbackErr := log.file.Truncate(position)
+		return nil, errors.Join(fmt.Errorf("append partition record batch: %w", writeErr), rollbackErr)
+	}
+	log.positions = append(log.positions, positions...)
+	return offsets, nil
 }
 
 // ReadFromOffset reads at most max log lines starting at an inclusive offset.
