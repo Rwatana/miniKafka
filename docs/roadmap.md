@@ -52,7 +52,8 @@ by its function, but must not add a second production function.
 | 21 | `LagHandler.ServeHTTP` | Implement `GET /lag` using committed offsets and partition log state. |
 | 22 | `DashboardHandler.ServeHTTP` | Render the dashboard shell; its client reads topics and lag through the broker API. |
 | 23 | `NewRouter` | Register the five broker endpoints and dashboard root path. |
-| 24 | `main` | Wire the broker, file logs, PostgreSQL, HTTP routes, and dashboard. |
+| 24 | `PrepareDatabase` | Register PostgreSQL, verify the connection, and apply the offset schema at startup. |
+| 25 | `main` | Wire the broker, file logs, PostgreSQL, HTTP routes, and dashboard. |
 
 ## First end-to-end milestone
 
