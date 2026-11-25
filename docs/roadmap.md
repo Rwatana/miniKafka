@@ -42,7 +42,7 @@ by its function, but must not add a second production function.
 | 11 | `produceHandler` | Implement `POST /produce` for a topic and partition. |
 | 12 | `consumeHandler` | Implement `GET /consume` with an explicit or committed starting offset. |
 | 13 | `CommitOffset` | In `internal/infrastructure/postgres`, add the reference composite-key table and atomically upsert one group's committed partition position. |
-| 14 | `getCommittedOffset` | Load a group's position for a topic partition. |
+| 14 | `GetCommittedOffset` | Load a group's position for a topic partition, defaulting to zero before the first commit. |
 | 15 | `topicsHandler` | Implement `GET /topics` from the partitions present on disk. |
 | 16 | `calculateLag` | Calculate latest offset minus committed position per partition. |
 | 17 | `lagHandler` | Implement `GET /lag` using committed offsets and partition log state. |
