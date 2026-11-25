@@ -23,18 +23,20 @@ make ci
 
 ## Run the broker
 
-The broker requires a reachable PostgreSQL database. The default connection
-matches the reference project:
+To start the broker and its PostgreSQL database together with Docker Compose:
 
 ```sh
-DATABASE_URL=postgres://postgres:postgres@localhost:5432/minikafka \
-DATA_DIR=./data PORT=5000 go run ./cmd/minikafka
+docker compose up --build
 ```
 
-`DATABASE_URL`, `DATA_DIR`, and `PORT` are optional. Startup pings PostgreSQL
-and applies `internal/infrastructure/postgres/schema.sql`. The HTTP server
-provides `/produce`, `/consume`, `/commit`, `/topics`, `/lag`, and the dashboard
-at `/`.
+The broker is available at `http://localhost:5000`; the dashboard is at `/`.
+Compose keeps PostgreSQL data and partition logs in separate named volumes.
+Stop the services with `docker compose down`; remove persistent database and
+log data with `docker compose down -v`. To start the Go process directly, set
+`DATABASE_URL` to a reachable PostgreSQL database; `DATA_DIR` and `PORT` are
+optional. Startup pings PostgreSQL and applies
+`internal/infrastructure/postgres/schema.sql`. The HTTP server provides
+`/produce`, `/consume`, `/commit`, `/topics`, and `/lag`.
 
 The docs folder explains each function-sized behavior and its relationship to
 the reference MiniKafka and Kafka concepts.
