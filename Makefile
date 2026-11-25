@@ -4,13 +4,16 @@ COVERAGE_FILE ?= coverage.out
 COVERAGE_CACHE ?= /tmp/minikafka-coverage-cache
 
 .DEFAULT_GOAL := help
-.PHONY: help test coverage coverage-check coverage-report coverage-html vet docs test-commit-prefix test-commit-period ci
+.PHONY: help test integration coverage coverage-check coverage-report coverage-html vet docs test-commit-prefix test-commit-period ci
 
 help: ## Show available development checks
 	@awk 'BEGIN { FS = ":.*##" } /^[a-zA-Z0-9_-]+:.*##/ { printf "%-18s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
 
 test: ## Run all Go tests
 	$(GO) test ./...
+
+integration: ## Run PostgreSQL-backed integration tests (requires DATABASE_URL)
+	$(GO) test -tags=integration ./...
 
 coverage: ## Run all Go tests and write a statement coverage profile
 	GOCACHE=$(COVERAGE_CACHE) $(GO) test ./... -coverprofile=$(COVERAGE_FILE)
