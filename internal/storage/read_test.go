@@ -59,7 +59,7 @@ func TestReadFromOffset(t *testing.T) {
 		if _, err := readFromOffset(nil, 0, 1); err == nil {
 			t.Error("readFromOffset(nil) error = nil, want error")
 		}
-		if _, err := readFromOffset(&partitionLog{}, 0, 1); err == nil {
+		if _, err := readFromOffset(&PartitionLog{}, 0, 1); err == nil {
 			t.Error("readFromOffset(empty log) error = nil, want error")
 		}
 		log := openTestPartitionLog(t, encodedTestRecord(t, 0, "one"))
@@ -110,7 +110,7 @@ func TestReadFromOffset(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer file.Close()
-		log := &partitionLog{file: file, positions: []int64{0}}
+		log := &PartitionLog{file: file, positions: []int64{0}}
 		if _, err := readFromOffset(log, 0, 1); err == nil {
 			t.Fatal("readFromOffset() error = nil, want read error")
 		}
@@ -129,13 +129,13 @@ func TestReadFromOffset(t *testing.T) {
 	})
 }
 
-func openTestPartitionLog(t *testing.T, contents string) *partitionLog {
+func openTestPartitionLog(t *testing.T, contents string) *PartitionLog {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "partition.log")
 	if err := os.WriteFile(path, []byte(contents), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	log, err := openPartitionLog(path)
+	log, err := OpenPartitionLog(path)
 	if err != nil {
 		t.Fatal(err)
 	}

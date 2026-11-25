@@ -17,8 +17,11 @@ type partitionLog struct {
 	positions []int64
 }
 
-// openPartitionLog opens or creates a log and recovers its byte index.
-func openPartitionLog(path string) (*partitionLog, error) {
+// PartitionLog is an opened partition's log and recovered offset index.
+type PartitionLog = partitionLog
+
+// OpenPartitionLog opens or creates a log and recovers its byte index.
+func OpenPartitionLog(path string) (*PartitionLog, error) {
 	file, err := partitionLogOpenFile(path, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0o600)
 	if err != nil {
 		return nil, fmt.Errorf("open partition log: %w", err)
