@@ -19,16 +19,16 @@ func TestAppendRecord(t *testing.T) {
 		}
 		key := "customer-42"
 		startedAt := time.Now().UnixMilli()
-		firstOffset, err := appendRecord(log, &key, "order-created")
+		firstOffset, err := AppendRecord(log, &key, "order-created")
 		if err != nil {
-			t.Fatalf("first appendRecord() error = %v", err)
+			t.Fatalf("first AppendRecord() error = %v", err)
 		}
 		if firstOffset != 0 {
 			t.Errorf("first offset = %d, want 0", firstOffset)
 		}
-		secondOffset, err := appendRecord(log, nil, "anonymous-event")
+		secondOffset, err := AppendRecord(log, nil, "anonymous-event")
 		if err != nil {
-			t.Fatalf("second appendRecord() error = %v", err)
+			t.Fatalf("second AppendRecord() error = %v", err)
 		}
 		if secondOffset != 1 {
 			t.Errorf("second offset = %d, want 1", secondOffset)
@@ -78,14 +78,14 @@ func TestAppendRecord(t *testing.T) {
 	})
 
 	t.Run("nil log", func(t *testing.T) {
-		if offset, err := appendRecord(nil, nil, "value"); offset != 0 || err == nil {
-			t.Errorf("appendRecord(nil) = (%d, %v), want error", offset, err)
+		if offset, err := AppendRecord(nil, nil, "value"); offset != 0 || err == nil {
+			t.Errorf("AppendRecord(nil) = (%d, %v), want error", offset, err)
 		}
 	})
 
 	t.Run("nil file", func(t *testing.T) {
-		if offset, err := appendRecord(&PartitionLog{}, nil, "value"); offset != 0 || err == nil {
-			t.Errorf("appendRecord(empty log) = (%d, %v), want error", offset, err)
+		if offset, err := AppendRecord(&PartitionLog{}, nil, "value"); offset != 0 || err == nil {
+			t.Errorf("AppendRecord(empty log) = (%d, %v), want error", offset, err)
 		}
 	})
 
@@ -97,8 +97,8 @@ func TestAppendRecord(t *testing.T) {
 		if err := log.file.Close(); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := appendRecord(log, nil, "value"); !errors.Is(err, os.ErrClosed) {
-			t.Errorf("appendRecord() error = %v, want closed-file error", err)
+		if _, err := AppendRecord(log, nil, "value"); !errors.Is(err, os.ErrClosed) {
+			t.Errorf("AppendRecord() error = %v, want closed-file error", err)
 		}
 		if len(log.positions) != 0 {
 			t.Errorf("positions = %v, want empty index after failure", log.positions)
@@ -115,8 +115,8 @@ func TestAppendRecord(t *testing.T) {
 		partitionRecordEncoder = func(Record) ([]byte, error) { return nil, errors.New("encode failed") }
 		defer func() { partitionRecordEncoder = originalEncoder }()
 
-		if _, err := appendRecord(log, nil, "value"); err == nil {
-			t.Fatal("appendRecord() error = nil, want encoding error")
+		if _, err := AppendRecord(log, nil, "value"); err == nil {
+			t.Fatal("AppendRecord() error = nil, want encoding error")
 		}
 		if len(log.positions) != 0 {
 			t.Errorf("positions = %v, want empty index after failure", log.positions)
@@ -134,8 +134,8 @@ func TestAppendRecord(t *testing.T) {
 		}
 		log := &PartitionLog{file: file}
 		defer file.Close()
-		if _, err := appendRecord(log, nil, "value"); err == nil {
-			t.Fatal("appendRecord() error = nil, want write error")
+		if _, err := AppendRecord(log, nil, "value"); err == nil {
+			t.Fatal("AppendRecord() error = nil, want write error")
 		}
 		if len(log.positions) != 0 {
 			t.Errorf("positions = %v, want empty index after failure", log.positions)
