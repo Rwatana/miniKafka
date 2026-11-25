@@ -45,11 +45,12 @@ by its function, but must not add a second production function.
 | 14 | `GetCommittedOffset` | Load a group's position for a topic partition, defaulting to zero before the first commit. |
 | 15 | `CommitHandler.ServeHTTP` | Implement `POST /commit` and delegate durable offset writes to PostgreSQL. |
 | 16 | `Broker.ListPartitions` | Discover existing topic/partition names by scanning `.log` files in the broker data directory. |
-| 17 | `TopicsHandler.ServeHTTP` | Implement `GET /topics` with each partition's next offset. |
-| 18 | `CalculateLag` | Calculate latest offset minus committed position per partition. |
-| 19 | `LagHandler.ServeHTTP` | Implement `GET /lag` using committed offsets and partition log state. |
-| 20 | `dashboardHandler` | Render the dashboard shell; its static client reads topics and lag through the broker API. |
-| 21 | `main` | Wire the broker, file logs, PostgreSQL, HTTP routes, and dashboard. |
+| 17 | `Broker.LatestOffset` | Return the next offset for one partition, recovering its log when needed. |
+| 18 | `TopicsHandler.ServeHTTP` | Implement `GET /topics` with each partition's next offset. |
+| 19 | `CalculateLag` | Calculate latest offset minus committed position per partition. |
+| 20 | `LagHandler.ServeHTTP` | Implement `GET /lag` using committed offsets and partition log state. |
+| 21 | `dashboardHandler` | Render the dashboard shell; its static client reads topics and lag through the broker API. |
+| 22 | `main` | Wire the broker, file logs, PostgreSQL, HTTP routes, and dashboard. |
 
 ## First end-to-end milestone
 

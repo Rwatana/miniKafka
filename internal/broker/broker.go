@@ -14,6 +14,7 @@ import (
 
 var appendBrokerRecord = storage.AppendRecord
 var readBrokerDirectory = os.ReadDir
+var openBrokerPartitionLog = storage.OpenPartitionLog
 
 // PartitionInfo identifies one topic partition found in the broker data directory.
 type PartitionInfo struct {
@@ -164,4 +165,49 @@ func (broker *Broker) ListPartitions() ([]PartitionInfo, error) {
 		partitions = append(partitions, PartitionInfo{Topic: stem[:separator], Partition: partition})
 	}
 	return partitions, nil
+}
+
+// LatestOffset returns the next offset for the selected topic partition.
+func (broker *Broker) LatestOffset(topic string, partition int) (int64, error) {
+	if broker == nil {
+		return 0, errors.New("get broker latest offset: nil broker")
+	}
+	broker.mu.Lock()
+	defer broker.mu.Unlock()
+
+	if broker.DataDir == "" {
+		return 0, errors.New("get broker latest offset: empty data directory")
+	}
+	if topic == "" || strings.ContainsAny(topic, `/\`) {
+		return 0, fmt.Errorf("get broker latest offset: invalid topic %q", topic)
+	}
+	if partition < 0 {
+		return 0, fmt.Errorf("get broker latest offset: negative partition %d", partition)
+	}
+
+	identity := partitionKey{topic: topic, partition: partition}
+	log := broker.logs[identity]
+	if log == nil {
+		path := filepath.Join(broker.DataDir, fmt.Sprintf("%s__%d.log", topic, partition))
+		if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
+			return 0, nil
+		} else if err != nil {
+			return 0, fmt.Errorf("find topic %q partition %d: %w", topic, partition, err)
+		}
+		openedLog, err := openBrokerPartitionLog(path)
+		if err != nil {
+			return 0, fmt.Errorf("open topic %q partition %d: %w", topic, partition, err)
+		}
+		if broker.logs == nil {
+			broker.logs = make(map[partitionKey]*storage.PartitionLog)
+		}
+		log = openedLog
+		broker.logs[identity] = log
+	}
+
+	offset, err := storage.LatestOffset(log)
+	if err != nil {
+		return 0, fmt.Errorf("get latest offset for topic %q partition %d: %w", topic, partition, err)
+	}
+	return offset, nil
 }
