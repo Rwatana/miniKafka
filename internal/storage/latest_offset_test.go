@@ -21,7 +21,7 @@ func TestLatestOffset(t *testing.T) {
 	t.Run("next offset follows appended records", func(t *testing.T) {
 		log := openTestPartitionLog(t, "")
 		for _, value := range []string{"one", "two", "three"} {
-			if _, err := appendRecord(log, nil, value); err != nil {
+			if _, err := AppendRecord(log, nil, value); err != nil {
 				t.Fatal(err)
 			}
 		}

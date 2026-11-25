@@ -46,8 +46,8 @@ func ClosePartitionLog(log *PartitionLog) error {
 	return nil
 }
 
-// appendRecord writes one record and advances the partition's offset index.
-func appendRecord(log *partitionLog, key *string, value string) (int64, error) {
+// AppendRecord writes one record and advances the partition's offset index.
+func AppendRecord(log *PartitionLog, key *string, value string) (int64, error) {
 	if log == nil || log.file == nil {
 		return 0, errors.New("append partition record: nil log or file")
 	}
