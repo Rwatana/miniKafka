@@ -43,11 +43,12 @@ by its function, but must not add a second production function.
 | 12 | `ConsumeHandler.ServeHTTP` | Implement `GET /consume` with an explicit or committed starting offset. |
 | 13 | `CommitOffset` | In `internal/infrastructure/postgres`, add the reference composite-key table and atomically upsert one group's committed partition position. |
 | 14 | `GetCommittedOffset` | Load a group's position for a topic partition, defaulting to zero before the first commit. |
-| 15 | `topicsHandler` | Implement `GET /topics` from the partitions present on disk. |
-| 16 | `calculateLag` | Calculate latest offset minus committed position per partition. |
-| 17 | `lagHandler` | Implement `GET /lag` using committed offsets and partition log state. |
-| 18 | `dashboardHandler` | Render the dashboard shell; its static client reads topics and lag through the broker API. |
-| 19 | `main` | Wire the broker, file logs, PostgreSQL, HTTP routes, and dashboard. |
+| 15 | `CommitHandler.ServeHTTP` | Implement `POST /commit` and delegate durable offset writes to PostgreSQL. |
+| 16 | `topicsHandler` | Implement `GET /topics` from the partitions present on disk. |
+| 17 | `calculateLag` | Calculate latest offset minus committed position per partition. |
+| 18 | `lagHandler` | Implement `GET /lag` using committed offsets and partition log state. |
+| 19 | `dashboardHandler` | Render the dashboard shell; its static client reads topics and lag through the broker API. |
+| 20 | `main` | Wire the broker, file logs, PostgreSQL, HTTP routes, and dashboard. |
 
 ## First end-to-end milestone
 
