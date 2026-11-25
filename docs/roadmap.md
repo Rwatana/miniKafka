@@ -41,7 +41,7 @@ by its function, but must not add a second production function.
 | 10 | `Broker.Consume` | Select a partition and delegate a bounded read to storage. |
 | 11 | `produceHandler` | Implement `POST /produce` for a topic and partition. |
 | 12 | `consumeHandler` | Implement `GET /consume` with an explicit or committed starting offset. |
-| 13 | `commitOffset` | Add the required SQL table with composite key `(consumer_group, topic, partition)` and atomically insert or update a committed position. |
+| 13 | `CommitOffset` | In `internal/infrastructure/postgres`, add the reference composite-key table and atomically upsert one group's committed partition position. |
 | 14 | `getCommittedOffset` | Load a group's position for a topic partition. |
 | 15 | `topicsHandler` | Implement `GET /topics` from the partitions present on disk. |
 | 16 | `calculateLag` | Calculate latest offset minus committed position per partition. |
