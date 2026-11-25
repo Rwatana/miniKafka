@@ -2,49 +2,107 @@
 
 ## Purpose
 
-MiniKafka is a teaching implementation of the smallest useful Kafka-like path:
-one producer appends an event to one broker's partition log, and a consumer reads
-it again by offset. The code grows only when a tested behavior needs another
-boundary.
+MiniKafka is a teaching implementation in Go of the core path in the
+[reference MiniKafka project](https://github.com/ayuxh16/Minikafka/tree/main/minikafka):
+a producer appends records to topic partitions, consumers read them by offset,
+and consumer groups persist their committed positions. The implementation grows
+in small, reviewed steps so each Kafka concept can be understood on its own.
 
-## Dependency direction
+This is a single-broker learning project. It does not claim wire compatibility
+with Apache Kafka or implement a Kafka cluster.
+
+## Reference behavior
+
+The reference project provides these core pieces:
+
+- Each topic partition has an append-only `.log` file. A record stores its
+  offset, optional key, value, and timestamp.
+- An in-memory index maps record offsets to byte positions in the partition
+  file. Startup rebuilds this index by scanning the log.
+- The broker exposes `POST /produce`, `GET /consume`, `POST /commit`,
+  `GET /topics`, and `GET /lag` over HTTP.
+- PostgreSQL stores one committed offset for each
+  `(consumer_group, topic, partition)` tuple. Commit uses an atomic upsert so
+  the tuple is inserted once and updated on subsequent commits.
+- A small dashboard reads the broker API to display topics, partitions, and
+  consumer lag.
+
+The initial Go implementation keeps the reference's deliberate limits: one
+broker, one log file per partition, no replication, no consumer group
+rebalancing, and no retention or compaction. These limits keep the storage and
+consumer position rules visible while the end-to-end path is built.
+
+## Package boundaries
 
 ```text
-cmd / adapter / infrastructure
-               ↓
-          broker/usecase
-               ↓
-          storage/domain
+cmd/minikafka
+   ↓
+internal/adapter/http ──→ internal/broker ──→ internal/storage
+                                  ↓                   ↓
+                         internal/offsets       internal/infrastructure/file
+                                  ↓
+                         internal/infrastructure/postgres
 ```
 
-- `internal/storage` owns record framing and offset-independent storage rules.
-- `internal/infrastructure/file` owns operating-system file access.
-- `internal/broker` composes storage operations when a broker behavior exists.
-- `internal/adapter` translates transport requests to broker calls.
-- `cmd/minikafka` is the composition root and owns process startup.
+- `internal/storage` defines record encoding, the offset index, and partition
+  log behavior without importing HTTP or PostgreSQL.
+- `internal/infrastructure/file` owns filesystem operations for durable logs.
+- `internal/infrastructure/postgres` owns the SQL schema and committed-offset
+  persistence.
+- `internal/broker` coordinates storage and offset operations for broker
+  behaviors.
+- `internal/adapter/http` translates HTTP requests and responses to broker
+  calls.
+- `cmd/minikafka` wires dependencies and starts the process.
+- The dashboard is served by Go's `html/template` and static files. It calls
+  the same HTTP API as external clients; it does not introduce another broker
+  path.
 
-Do not create these packages empty or add interfaces before a caller needs them.
-The storage core must not import HTTP or filesystem adapters.
+Create a package only when an Issue introduces a caller for it. Avoid unused
+interfaces and empty scaffolding.
 
-## Learning path
+## End-to-end acceptance path
 
-1. Encode one bounded length-prefixed record frame.
-2. Read one complete frame and distinguish clean EOF from corruption.
-3. Open one partition log and recover its next offset.
-4. Close the owned log file.
-5. Append an event and return its monotonically increasing offset.
-6. Fetch a bounded ordered range from an inclusive offset.
-7. Add producer and consumer HTTP handlers, then a loopback server.
-8. Verify append, fetch, restart, and continued offsets end to end.
+The first complete milestone must demonstrate all of the following:
 
-After the single-broker path works, future small steps can add checksums, segment
-rotation, sparse indexes, topic partitioning, batches, consumer positions, and
-replication. These are not part of the first implementation unit.
+1. Produce records to a topic partition and receive sequential offsets.
+2. Consume from an explicitly requested offset and receive ordered records.
+3. Restart the broker and rebuild the offset-to-byte-position index from the
+   append-only log, preserving the next offset.
+4. Commit a consumer group's offset and read that committed offset on a later
+   consume request.
+5. Report per-partition committed offset, latest offset, and lag from
+   `GET /lag`.
 
-## Test and documentation rules
+The topic list endpoint must report the topics and partitions present on disk.
+`GET /consume` uses an explicit offset when supplied; otherwise, when a group is
+specified, it starts from that group's committed offset. `POST /commit` stores
+the caller's next position for the selected group, topic, and partition.
 
-Use Red-Green-Refactor: name a user-visible behavior in a failing test, implement
-only enough to pass, and then improve the design without changing behavior. Use
-unit tests for pure rules and temporary directories for filesystem integration.
-Each function-sized change documents the relevant Kafka concept, source mapping,
-design decisions, tests, and deliberate omissions in `docs/chapters/`.
+## Function-sized workflow
+
+- Start each behavior from a GitHub Issue with explicit acceptance criteria and
+  tests.
+- Keep each implementation PR to one production function, its tests, and the
+  learning note for that function. Supporting declarations do not justify
+  bundling another behavior.
+- Keep exactly one commit in each PR. Amend it when review requests changes.
+- Use `feature/#<issue-number>_<snake_case_description>` branches and include
+  the matching Issue number and `Closes #<issue-number>` in the PR body.
+- Use commit subjects in the form `[Scope] Summary.`.
+- Review every PR against its Issue, function boundary, tests, explanation, and
+  CI before it is considered complete. Do not skip review because the change is
+  small.
+
+## Tests and learning notes
+
+Use Red-Green-Refactor: first write a failing test for the behavior, then make
+the smallest implementation that passes, then refactor without changing the
+behavior. Use temporary directories for filesystem tests and a disposable
+PostgreSQL service for persistence integration tests. Keep statement coverage at
+100 percent as required by the repository checks.
+
+Each function-sized change adds or updates a note under `docs/chapters/` that
+explains the Kafka concept, maps it to the reference source, describes the Go
+design, records the tests, and names intentional differences. Explain editable
+Draw.io diagrams in Markdown and commit their source files.
