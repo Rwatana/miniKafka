@@ -38,27 +38,48 @@ func (connection offsetQueryConn) QueryContext(_ context.Context, query string, 
 	if connection.mode == "error" {
 		return nil, errors.New("query failed")
 	}
-	rows := &offsetQueryRows{}
-	if connection.mode == "stored" {
-		rows.values = []driver.Value{int64(23)}
+	rows := &offsetQueryRows{columns: []string{"committed_offset"}}
+	switch connection.mode {
+	case "stored":
+		rows.columns = []string{"committed_offset"}
+		rows.records = [][]driver.Value{{int64(23)}}
+	case "group-list":
+		rows.columns = []string{"topic", "partition", "committed_offset"}
+		rows.records = [][]driver.Value{{"events", int64(0), int64(7)}, {"orders", int64(2), int64(21)}}
+	case "empty-list":
+		rows.columns = []string{"topic", "partition", "committed_offset"}
+	case "scan-error":
+		rows.columns = []string{"topic", "partition", "committed_offset"}
+		rows.records = [][]driver.Value{{"orders", "bad-partition", "bad-offset"}}
+	case "rows-error":
+		rows.columns = []string{"topic", "partition", "committed_offset"}
+		rows.records = [][]driver.Value{{"orders", int64(0), int64(1)}}
+		rows.nextError = errors.New("iteration failed")
 	}
 	return rows, nil
 }
 
 type offsetQueryRows struct {
-	values []driver.Value
-	read   bool
+	columns   []string
+	records   [][]driver.Value
+	index     int
+	nextError error
+	errorRead bool
 }
 
-func (rows *offsetQueryRows) Columns() []string { return []string{"committed_offset"} }
+func (rows *offsetQueryRows) Columns() []string { return rows.columns }
 func (rows *offsetQueryRows) Close() error      { return nil }
 func (rows *offsetQueryRows) Next(destination []driver.Value) error {
-	if rows.read || rows.values == nil {
-		return io.EOF
+	if rows.index < len(rows.records) {
+		copy(destination, rows.records[rows.index])
+		rows.index++
+		return nil
 	}
-	rows.read = true
-	copy(destination, rows.values)
-	return nil
+	if rows.nextError != nil && !rows.errorRead {
+		rows.errorRead = true
+		return rows.nextError
+	}
+	return io.EOF
 }
 
 func openOffsetQueryDB(t *testing.T, mode string) *sql.DB {

@@ -16,6 +16,17 @@ type offsetQueryer interface {
 	QueryRowContext(context.Context, string, ...any) *sql.Row
 }
 
+type offsetRowsQueryer interface {
+	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
+}
+
+// GroupOffset is one committed position returned for a consumer group.
+type GroupOffset struct {
+	Topic           string
+	Partition       int
+	CommittedOffset int64
+}
+
 // CommitOffset atomically inserts or advances a group's offset for one partition.
 func CommitOffset(ctx context.Context, executor offsetExecutor, group, topic string, partition int, offset int64) error {
 	if ctx == nil {
@@ -78,4 +89,38 @@ func GetCommittedOffset(ctx context.Context, queryer offsetQueryer, group, topic
 		return 0, fmt.Errorf("get offset for group %q topic %q partition %d: %w", group, topic, partition, err)
 	}
 	return offset, nil
+}
+
+// ListOffsetsForGroup returns committed positions for all partitions in a group.
+func ListOffsetsForGroup(ctx context.Context, queryer offsetRowsQueryer, group string) ([]GroupOffset, error) {
+	if ctx == nil {
+		return nil, errors.New("list committed offsets: nil context")
+	}
+	if queryer == nil {
+		return nil, errors.New("list committed offsets: nil database queryer")
+	}
+	if group == "" {
+		return nil, errors.New("list committed offsets: empty consumer group")
+	}
+
+	const query = `SELECT topic, partition, committed_offset FROM consumer_offsets
+		WHERE consumer_group = $1 ORDER BY topic, partition`
+	rows, err := queryer.QueryContext(ctx, query, group)
+	if err != nil {
+		return nil, fmt.Errorf("list offsets for group %q: %w", group, err)
+	}
+	defer rows.Close()
+
+	offsets := make([]GroupOffset, 0)
+	for rows.Next() {
+		var offset GroupOffset
+		if err := rows.Scan(&offset.Topic, &offset.Partition, &offset.CommittedOffset); err != nil {
+			return nil, fmt.Errorf("scan offsets for group %q: %w", group, err)
+		}
+		offsets = append(offsets, offset)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("read offsets for group %q: %w", group, err)
+	}
+	return offsets, nil
 }

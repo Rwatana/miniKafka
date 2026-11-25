@@ -47,10 +47,11 @@ by its function, but must not add a second production function.
 | 16 | `Broker.ListPartitions` | Discover existing topic/partition names by scanning `.log` files in the broker data directory. |
 | 17 | `Broker.LatestOffset` | Return the next offset for one partition, recovering its log when needed. |
 | 18 | `TopicsHandler.ServeHTTP` | Implement `GET /topics` with each partition's next offset. |
-| 19 | `CalculateLag` | Calculate latest offset minus committed position per partition. |
-| 20 | `LagHandler.ServeHTTP` | Implement `GET /lag` using committed offsets and partition log state. |
-| 21 | `dashboardHandler` | Render the dashboard shell; its static client reads topics and lag through the broker API. |
-| 22 | `main` | Wire the broker, file logs, PostgreSQL, HTTP routes, and dashboard. |
+| 19 | `ListOffsetsForGroup` | Load all committed partition positions for one consumer group. |
+| 20 | `CalculateLag` | Calculate latest offset minus committed position per partition. |
+| 21 | `LagHandler.ServeHTTP` | Implement `GET /lag` using committed offsets and partition log state. |
+| 22 | `dashboardHandler` | Render the dashboard shell; its static client reads topics and lag through the broker API. |
+| 23 | `main` | Wire the broker, file logs, PostgreSQL, HTTP routes, and dashboard. |
 
 ## First end-to-end milestone
 
