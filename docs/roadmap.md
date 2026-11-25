@@ -82,3 +82,4 @@ being described as behavior from the Node reference.
 | Order | Function or single change | Learning outcome |
 | --- | --- | --- |
 | 27 | `AppendRecords` | Encode multiple records, preserve contiguous offsets, and append one batch with one file write. |
+| 28 | `Broker.ProduceBatch` | Pass a batch through broker validation and partition-log ownership while keeping offset assignment serialized. |

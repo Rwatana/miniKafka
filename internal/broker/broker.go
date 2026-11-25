@@ -13,6 +13,7 @@ import (
 )
 
 var appendBrokerRecord = storage.AppendRecord
+var appendBrokerRecords = storage.AppendRecords
 var readBrokerDirectory = os.ReadDir
 var openBrokerPartitionLog = storage.OpenPartitionLog
 
@@ -75,6 +76,52 @@ func (broker *Broker) Produce(topic string, partition int, key *string, value st
 		return 0, fmt.Errorf("produce topic %q partition %d: %w", topic, partition, err)
 	}
 	return offset, nil
+}
+
+// ProduceBatch appends records to one topic partition and returns their offsets.
+func (broker *Broker) ProduceBatch(topic string, partition int, records []storage.Record) ([]int64, error) {
+	if broker == nil {
+		return nil, errors.New("produce record batch: nil broker")
+	}
+	broker.mu.Lock()
+	defer broker.mu.Unlock()
+
+	if broker.DataDir == "" {
+		return nil, errors.New("produce record batch: empty data directory")
+	}
+	if topic == "" || strings.ContainsAny(topic, `/\\`) {
+		return nil, fmt.Errorf("produce record batch: invalid topic %q", topic)
+	}
+	if partition < 0 {
+		return nil, fmt.Errorf("produce record batch: negative partition %d", partition)
+	}
+	if len(records) == 0 {
+		return []int64{}, nil
+	}
+
+	if broker.logs == nil {
+		broker.logs = make(map[partitionKey]*storage.PartitionLog)
+	}
+	identity := partitionKey{topic: topic, partition: partition}
+	log := broker.logs[identity]
+	if log == nil {
+		if err := os.MkdirAll(broker.DataDir, 0o700); err != nil {
+			return nil, fmt.Errorf("create broker data directory: %w", err)
+		}
+		filename := fmt.Sprintf("%s__%d.log", topic, partition)
+		openedLog, err := storage.OpenPartitionLog(filepath.Join(broker.DataDir, filename))
+		if err != nil {
+			return nil, fmt.Errorf("open topic %q partition %d: %w", topic, partition, err)
+		}
+		log = openedLog
+		broker.logs[identity] = log
+	}
+
+	offsets, err := appendBrokerRecords(log, records)
+	if err != nil {
+		return nil, fmt.Errorf("produce topic %q partition %d batch: %w", topic, partition, err)
+	}
+	return offsets, nil
 }
 
 // Consume reads a bounded range of records from a topic partition.
