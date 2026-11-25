@@ -1,9 +1,12 @@
 package storage
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 )
 
 // Record is the value persisted for one topic-partition log entry.
@@ -27,4 +30,24 @@ func decodeRecord(encoded []byte) (Record, error) {
 		return Record{}, fmt.Errorf("decode MiniKafka record: %w", err)
 	}
 	return record, nil
+}
+
+// rebuildIndex returns the byte position of every record line in a partition log.
+func rebuildIndex(log io.Reader) ([]int64, error) {
+	reader := bufio.NewReader(log)
+	var positions []int64
+	var bytePosition int64
+	for {
+		line, err := reader.ReadBytes('\n')
+		if len(line) > 0 {
+			positions = append(positions, bytePosition)
+			bytePosition += int64(len(line))
+		}
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				return positions, nil
+			}
+			return nil, fmt.Errorf("rebuild partition log index: %w", err)
+		}
+	}
 }
