@@ -115,3 +115,4 @@ being described as behavior from the Node reference.
 | 58 | `kafka.decodeRecordV2` | Parse one magic-v2 record's deltas, nullable key/value, and headers. |
 | 59 | `kafka.decodeUncompressedRecordBatchV2` | Decode exactly the records declared in an uncompressed batch and validate offsets. |
 | 60 | `kafka.decodeRecordBatchesV2` | Walk a Produce record set's length-delimited magic-v2 batches in order. |
+| 61 | `kafka.encodeProduceResponseV3` | Encode Produce v3 topic and partition outcomes in legacy schema order. |
