@@ -124,3 +124,4 @@ being described as behavior from the Node reference.
 | 67 | `broker.Broker.AppendKafkaRecordBatch` | Own, recover, serialize, and append validated Kafka batches by topic partition. |
 | 68 | `kafka.HandleProduceRequestV3` | Validate, append, and answer non-transactional Produce v3 requests. |
 | 69 | `kafka.HandleKafkaRequest` | Route Produce v3 frames to the handler and supply an optional batch appender. |
+| 70 | `kafka.ServeKafkaConnection` | Pass the Produce appender through persistent mixed-API connections. |
