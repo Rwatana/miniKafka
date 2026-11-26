@@ -71,3 +71,21 @@ func TestEncodeProduceResponseV3RejectsInvalidTopicName(t *testing.T) {
 		})
 	}
 }
+
+func TestEncodeProduceResponseFrameV3(t *testing.T) {
+	response := produceResponseV3{Topics: []produceTopicResponseV3{{Name: "x"}}}
+	got, err := encodeProduceResponseFrameV3(0x01020304, response, 19)
+	if err != nil {
+		t.Fatalf("encodeProduceResponseFrameV3() error = %v", err)
+	}
+	want := []byte{0, 0, 0, 19, 1, 2, 3, 4, 0, 0, 0, 1, 0, 1, 'x', 0, 0, 0, 0, 0, 0, 0, 0}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("response frame = %v, want %v", got, want)
+	}
+	if _, err := encodeProduceResponseFrameV3(0, response, 18); err == nil {
+		t.Error("encodeProduceResponseFrameV3(oversized) error = nil, want frame-size error")
+	}
+	if _, err := encodeProduceResponseFrameV3(0, produceResponseV3{Topics: []produceTopicResponseV3{{Name: string([]byte{0xff})}}}, 100); err == nil {
+		t.Error("encodeProduceResponseFrameV3(invalid body) error = nil, want body-encoding error")
+	}
+}

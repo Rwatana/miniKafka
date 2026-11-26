@@ -69,3 +69,13 @@ func encodeProduceResponseV3(response produceResponseV3) ([]byte, error) {
 	appendInt32(response.ThrottleTime)
 	return encoded, nil
 }
+
+// encodeProduceResponseFrameV3 assembles a bounded Produce v3 response frame.
+func encodeProduceResponseFrameV3(correlationID int32, response produceResponseV3, maxFrameBytes int32) ([]byte, error) {
+	body, err := encodeProduceResponseV3(response)
+	if err != nil {
+		return nil, err
+	}
+	frameBody := append(encodeResponseHeaderV0(correlationID), body...)
+	return encodeResponseFrame(frameBody, maxFrameBytes)
+}
