@@ -86,3 +86,42 @@ func signedVarintForTest(value int32) []byte {
 	length := binary.PutUvarint(encoded[:], uint64(zigzag))
 	return append([]byte(nil), encoded[:length]...)
 }
+
+func TestDecodeUnsignedVarlong(t *testing.T) {
+	tests := []struct {
+		name   string
+		input  []byte
+		value  uint64
+		length int
+	}{
+		{name: "zero", input: []byte{0}, value: 0, length: 1},
+		{name: "multiple bytes", input: []byte{0xac, 0x02, 0xff}, value: 300, length: 2},
+		{name: "maximum uint64", input: []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x01, 0xff}, value: ^uint64(0), length: 10},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got, length, err := decodeUnsignedVarlong(test.input)
+			if err != nil {
+				t.Fatalf("decodeUnsignedVarlong() error = %v", err)
+			}
+			if got != test.value || length != test.length {
+				t.Errorf("decodeUnsignedVarlong() = (%d, %d), want (%d, %d)", got, length, test.value, test.length)
+			}
+		})
+	}
+}
+
+func TestDecodeUnsignedVarlongRejectsInvalidInput(t *testing.T) {
+	for name, input := range map[string][]byte{
+		"empty":           nil,
+		"truncated":       {0x80},
+		"overflow":        {0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x02},
+		"continued tenth": {0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80},
+	} {
+		t.Run(name, func(t *testing.T) {
+			if _, _, err := decodeUnsignedVarlong(input); err == nil {
+				t.Error("decodeUnsignedVarlong() error = nil, want error")
+			}
+		})
+	}
+}
