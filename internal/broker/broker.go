@@ -321,5 +321,11 @@ func (broker *Broker) Close() error {
 		}
 		delete(broker.logs, identity)
 	}
+	for identity, log := range broker.kafkaLogs {
+		if err := closeBrokerKafkaPartitionLog(log); err != nil {
+			closeErrors = append(closeErrors, fmt.Errorf("close Kafka topic %q partition %d: %w", identity.topic, identity.partition, err))
+		}
+		delete(broker.kafkaLogs, identity)
+	}
 	return errors.Join(closeErrors...)
 }
