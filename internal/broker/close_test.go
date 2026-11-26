@@ -18,11 +18,17 @@ func TestBrokerClose(t *testing.T) {
 		if _, err := store.Produce("orders", 2, nil, "second"); err != nil {
 			t.Fatal(err)
 		}
+		if _, err := store.AppendKafkaRecordBatch("orders", 0, kafkaBatchForBrokerTest()); err != nil {
+			t.Fatal(err)
+		}
 		if err := store.Close(); err != nil {
 			t.Fatalf("Close() error = %v", err)
 		}
 		if len(store.logs) != 0 {
 			t.Errorf("cached logs = %d, want 0 after close", len(store.logs))
+		}
+		if len(store.kafkaLogs) != 0 {
+			t.Errorf("cached Kafka logs = %d, want 0 after close", len(store.kafkaLogs))
 		}
 		if err := store.Close(); err != nil {
 			t.Errorf("second Close() error = %v, want nil", err)
@@ -55,6 +61,35 @@ func TestBrokerClose(t *testing.T) {
 		}
 		if _, err := storage.AppendRecord(healthyLog, nil, "closed"); err == nil {
 			t.Error("healthy log remained open after another log failed to close")
+		}
+	})
+
+	t.Run("closes healthy Kafka logs when another Kafka close fails", func(t *testing.T) {
+		directory := t.TempDir()
+		brokenLog, err := storage.OpenKafkaPartitionLog(filepath.Join(directory, "broken.kafka.log"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := storage.CloseKafkaPartitionLog(brokenLog); err != nil {
+			t.Fatal(err)
+		}
+		healthyLog, err := storage.OpenKafkaPartitionLog(filepath.Join(directory, "healthy.kafka.log"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		store := &Broker{kafkaLogs: map[partitionKey]*storage.KafkaPartitionLog{
+			{topic: "broken", partition: 0}:  brokenLog,
+			{topic: "healthy", partition: 0}: healthyLog,
+		}}
+		err = store.Close()
+		if err == nil || !errors.Is(err, os.ErrClosed) {
+			t.Errorf("Close() error = %v, want closed Kafka-log error", err)
+		}
+		if len(store.kafkaLogs) != 0 {
+			t.Errorf("cached Kafka logs = %d, want 0 after close", len(store.kafkaLogs))
+		}
+		if _, err := storage.AppendKafkaRecordBatch(healthyLog, kafkaBatchForBrokerTest()); err == nil {
+			t.Error("healthy Kafka log remained open after another log failed to close")
 		}
 	})
 

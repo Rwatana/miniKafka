@@ -14,13 +14,13 @@ explicit through the broker owner.
 ## Go design
 
 `Broker.Close` serializes shutdown with produce and consume operations, closes
-all cached partition logs, removes every cache entry, and joins contextual
-errors after attempting all handles.
+all cached JSON and Kafka binary partition logs, removes every cache entry,
+and joins contextual errors after attempting all handles.
 
 ## Tests
 
-Tests cover multiple healthy logs, repeated close, nil and empty brokers, and
-one failing close alongside a healthy handle.
+Tests cover healthy logs of both formats, repeated close, nil and empty brokers,
+and one failing close alongside a healthy handle.
 
 ## Deliberate differences
 
