@@ -112,6 +112,47 @@ func TestServeKafkaAcceptsMixedAPIClient(t *testing.T) {
 	}
 }
 
+func TestServeKafkaAcceptsProduceV3Client(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("net.Listen() error = %v", err)
+	}
+	done := make(chan error, 1)
+	go func() {
+		done <- ServeKafka(listener, 1024, nil, nil, func(topic string, partition int, batch []byte) (int64, error) {
+			if topic != "orders" || partition != 0 || len(batch) < 61 {
+				t.Errorf("appender arguments = (%q, %d, %d bytes), want orders, 0, Kafka batch", topic, partition, len(batch))
+			}
+			return 23, nil
+		})
+	}()
+	client, err := net.Dial("tcp", listener.Addr().String())
+	if err != nil {
+		t.Fatalf("net.Dial() error = %v", err)
+	}
+	batch := recordBatchV2ForTest(1, 0, recordV2ForTest(kafkaRecordV2{Headers: []recordHeaderV2{}}))
+	request := appendFrame(nil, produceRequestFrameV3ForTest(nil, 1, []produceTopicData{{Name: "orders", Partitions: []producePartitionData{{Index: 0, Records: batch}}}}))
+	if _, err := client.Write(request); err != nil {
+		t.Fatalf("write Produce request: %v", err)
+	}
+	got, err := ReadRequestFrame(client, 1024)
+	if err != nil {
+		t.Fatalf("ReadRequestFrame() error = %v", err)
+	}
+	want, err := encodeProduceResponseFrameV3(42, produceResponseV3{Topics: []produceTopicResponseV3{{Name: "orders", Partitions: []producePartitionResponseV3{{Index: 0, BaseOffset: 23, LogAppendTimeMs: -1}}}}}, 1024)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(got, want[4:]) {
+		t.Errorf("Produce response = %x, want %x", got, want[4:])
+	}
+	_ = client.Close()
+	_ = listener.Close()
+	if err := <-done; err != nil {
+		t.Errorf("ServeKafka() error = %v, want clean listener close", err)
+	}
+}
+
 func TestServeKafkaReturnsAcceptErrors(t *testing.T) {
 	wantErr := errors.New("accept failed")
 	listener := &errorListener{err: wantErr}
