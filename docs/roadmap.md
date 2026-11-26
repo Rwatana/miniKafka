@@ -92,3 +92,4 @@ being described as behavior from the Node reference.
 | 35 | `kafka.encodeResponseHeaderV0` | Encode the four-byte correlation ID in a non-flexible Kafka response header. |
 | 36 | `kafka.encodeResponseFrame` | Prefix a response body with its bounded four-byte Kafka message size. |
 | 37 | `kafka.decodeCompactString` | Decode a required compact UTF-8 string while rejecting the null sentinel. |
+| 38 | `kafka.decodeAPIVersionsRequestV3` | Parse ApiVersions v3 client identity fields and its flexible tagged-fields section. |
