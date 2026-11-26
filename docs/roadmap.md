@@ -102,3 +102,4 @@ being described as behavior from the Node reference.
 | 45 | `kafka.decodeMetadataRequestV0` | Decode Metadata v0's legacy topic array and UTF-8 STRING fields. |
 | 46 | `kafka.encodeMetadataResponseV0` | Encode broker, topic, and partition metadata using the legacy v0 schema. |
 | 47 | `kafka.HandleMetadataRequestV0` | Match requested topics, return unknown-topic errors, and frame a correlation-matched Metadata v0 response. |
+| 48 | `metadataTopicsFromPartitions` | Convert discovered single-broker log partitions into deterministically ordered Kafka topic metadata. |
