@@ -71,8 +71,8 @@ The broker milestone is complete when an automated integration test can:
 The first complete version remains a single broker with one file per partition.
 It has no replication, consumer-group rebalancing, retention, or compaction,
 matching the reference project's intentional scope. These are separate future
-milestones, each split into function-sized Issues and PRs. Kafka wire protocol
-compatibility is also outside this teaching project's scope.
+milestones, each split into function-sized Issues and PRs. Apache Kafka protocol
+compatibility is tracked separately below as a broader implementation goal.
 
 The reference feature map is now implemented through the runnable Compose
 stack. Further work extends the teaching project with Kafka-inspired storage
@@ -98,3 +98,4 @@ being described as behavior from the Node reference.
 | 41 | `kafka.HandleAPIVersionsRequestV3` | Validate one v3 request and return its correlation-matched response frame. |
 | 42 | `kafka.ServeAPIVersionsV3Connection` | Process ordered, size-delimited ApiVersions requests until the connection reaches EOF. |
 | 43 | `kafka.ServeAPIVersionsV3` | Accept TCP clients and run the ApiVersions v3 connection loop for each client. |
+| 44 | `main` | Open the Kafka protocol listener alongside the existing HTTP application and expose port 9092 in Compose. |
