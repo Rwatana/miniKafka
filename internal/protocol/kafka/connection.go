@@ -73,8 +73,8 @@ func ServeKafkaConnection(conn net.Conn, maxFrameBytes int32, supportedAPIs []AP
 	}
 }
 
-// ServeKafkaConnectionWithFetchReader processes requests through the reader-aware Fetch dispatcher until EOF.
-func ServeKafkaConnectionWithFetchReader(conn net.Conn, maxFrameBytes int32, supportedAPIs []APIVersionRange, metadataProvider MetadataProvider, appendBatch KafkaBatchAppender, readBatches KafkaBatchReader) error {
+// ServeKafkaConnectionWithFetchReader processes Fetch and ListOffsets requests with broker callbacks until EOF.
+func ServeKafkaConnectionWithFetchReader(conn net.Conn, maxFrameBytes int32, supportedAPIs []APIVersionRange, metadataProvider MetadataProvider, appendBatch KafkaBatchAppender, readBatches KafkaBatchReader, offsetLookups ...KafkaOffsetLookup) error {
 	for {
 		requestFrame, err := ReadRequestFrame(conn, maxFrameBytes)
 		if errors.Is(err, io.EOF) {
@@ -91,7 +91,7 @@ func ServeKafkaConnectionWithFetchReader(conn net.Conn, maxFrameBytes int32, sup
 				return fmt.Errorf("load Kafka metadata: %w", err)
 			}
 		}
-		response, err := HandleKafkaRequestWithFetchReader(requestFrame, maxFrameBytes, supportedAPIs, brokers, topics, appendBatch, readBatches)
+		response, err := HandleKafkaRequestWithFetchReader(requestFrame, maxFrameBytes, supportedAPIs, brokers, topics, appendBatch, readBatches, offsetLookups...)
 		if err != nil {
 			return fmt.Errorf("handle Kafka request: %w", err)
 		}
