@@ -84,3 +84,4 @@ being described as behavior from the Node reference.
 | 27 | `AppendRecords` | Encode multiple records, preserve contiguous offsets, and append one batch with one file write. |
 | 28 | `Broker.ProduceBatch` | Pass a batch through broker validation and partition-log ownership while keeping offset assignment serialized. |
 | 29 | `kafka.ReadRequestFrame` | Read one bounded, size-prefixed Kafka 4.4.0 TCP request before decoding its API header. |
+| 30 | `kafka.DecodeRequestHeaderV1` | Decode the API key, schema version, correlation ID, and nullable client ID for non-flexible Kafka requests. |
