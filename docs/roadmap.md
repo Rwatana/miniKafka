@@ -87,3 +87,4 @@ being described as behavior from the Node reference.
 | 30 | `kafka.DecodeRequestHeaderV1` | Decode the API key, schema version, correlation ID, and nullable client ID for non-flexible Kafka requests. |
 | 31 | `kafka.decodeUnsignedVarint` | Decode bounded unsigned varints used by Kafka compact field lengths without confusing them with zig-zag VARINT. |
 | 32 | `kafka.decodeCompactNullableString` | Decode Kafka's length-plus-one compact nullable UTF-8 strings and preserve following fields. |
+| 33 | `kafka.skipTaggedFields` | Validate and skip Kafka flexible-protocol tag buffers while preserving following fields. |
