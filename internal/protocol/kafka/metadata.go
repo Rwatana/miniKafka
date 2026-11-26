@@ -136,3 +136,62 @@ func encodeMetadataResponseV0(brokers []MetadataBroker, topics []MetadataTopic) 
 	}
 	return encoded, nil
 }
+
+// encodeMetadataResponseV1 encodes brokers, controller, topics, and partitions in Metadata v1 format.
+func encodeMetadataResponseV1(brokers []MetadataBroker, controllerID int32, topics []MetadataTopic) ([]byte, error) {
+	encoded := make([]byte, 0)
+	appendInt16 := func(value int16) {
+		var field [2]byte
+		binary.BigEndian.PutUint16(field[:], uint16(value))
+		encoded = append(encoded, field[:]...)
+	}
+	appendInt32 := func(value int32) {
+		var field [4]byte
+		binary.BigEndian.PutUint32(field[:], uint32(value))
+		encoded = append(encoded, field[:]...)
+	}
+	appendString := func(value string) error {
+		if !utf8.ValidString(value) {
+			return fmt.Errorf("encode Metadata v1 response: string is not valid UTF-8")
+		}
+		if len(value) > math.MaxInt16 {
+			return fmt.Errorf("encode Metadata v1 response: string length %d exceeds INT16 maximum", len(value))
+		}
+		appendInt16(int16(len(value)))
+		encoded = append(encoded, value...)
+		return nil
+	}
+	appendInt32(int32(len(brokers)))
+	for _, broker := range brokers {
+		appendInt32(broker.NodeID)
+		if err := appendString(broker.Host); err != nil {
+			return nil, err
+		}
+		appendInt32(broker.Port)
+		appendInt16(-1) // Rack is nullable and not configured by MiniKafka.
+	}
+	appendInt32(controllerID)
+	appendInt32(int32(len(topics)))
+	for _, topic := range topics {
+		appendInt16(topic.ErrorCode)
+		if err := appendString(topic.Name); err != nil {
+			return nil, err
+		}
+		encoded = append(encoded, 0) // is_internal is false for user topics.
+		appendInt32(int32(len(topic.Partitions)))
+		for _, partition := range topic.Partitions {
+			appendInt16(partition.ErrorCode)
+			appendInt32(partition.PartitionIndex)
+			appendInt32(partition.LeaderID)
+			appendInt32(int32(len(partition.ReplicaNodes)))
+			for _, replica := range partition.ReplicaNodes {
+				appendInt32(replica)
+			}
+			appendInt32(int32(len(partition.ISRNodes)))
+			for _, replica := range partition.ISRNodes {
+				appendInt32(replica)
+			}
+		}
+	}
+	return encoded, nil
+}
