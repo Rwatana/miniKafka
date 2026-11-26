@@ -17,6 +17,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/Rwatana/miniKafka/internal/kafkaerr"
 	kafkaprotocol "github.com/Rwatana/miniKafka/internal/protocol/kafka"
 )
 
@@ -137,8 +138,8 @@ func TestMain(t *testing.T) {
 			}
 			if readBatches == nil {
 				t.Error("Fetch reader = nil, want broker callback")
-			} else if records, highWatermark, err := readBatches("missing", 0, 0, 1024); err != nil || len(records) != 0 || highWatermark != 0 {
-				t.Errorf("missing Fetch read = (%x, %d, %v), want (empty, 0, nil)", records, highWatermark, err)
+			} else if records, highWatermark, err := readBatches("missing", 0, 0, 1024); !errors.Is(err, kafkaerr.ErrUnknownTopicOrPartition) || records != nil || highWatermark != 0 {
+				t.Errorf("missing Fetch read = (%x, %d, %v), want (nil, 0, unknown topic/partition)", records, highWatermark, err)
 			}
 			return nil
 		}
