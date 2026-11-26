@@ -12,6 +12,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -57,6 +58,7 @@ func TestMain(t *testing.T) {
 		t.Setenv("DATA_DIR", "")
 		t.Setenv("PORT", "")
 		t.Setenv("KAFKA_LISTEN_ADDR", "")
+		t.Setenv("KAFKA_ADVERTISED_HOST", "")
 
 		originalPrepare := prepareDatabase
 		originalListen := listenAndServe
@@ -110,12 +112,25 @@ func TestMain(t *testing.T) {
 			kafkaListener = &appTestListener{}
 			return kafkaListener, nil
 		}
-		serveKafka = func(_ net.Listener, maxFrameBytes int32, supported []kafkaprotocol.APIVersionRange) error {
+		serveKafka = func(_ net.Listener, maxFrameBytes int32, supported []kafkaprotocol.APIVersionRange, metadataProvider kafkaprotocol.MetadataProvider) error {
 			if maxFrameBytes != 100*1024*1024 {
 				t.Errorf("Kafka max frame size = %d, want 100 MiB", maxFrameBytes)
 			}
-			if len(supported) != 1 || supported[0] != (kafkaprotocol.APIVersionRange{APIKey: 18, MinVersion: 0, MaxVersion: 3}) {
-				t.Errorf("supported Kafka APIs = %+v, want ApiVersions v0-v3", supported)
+			wantSupported := []kafkaprotocol.APIVersionRange{{APIKey: 3, MinVersion: 0, MaxVersion: 0}, {APIKey: 18, MinVersion: 0, MaxVersion: 3}}
+			if !reflect.DeepEqual(supported, wantSupported) {
+				t.Errorf("supported Kafka APIs = %+v, want %+v", supported, wantSupported)
+			}
+			if metadataProvider == nil {
+				t.Error("metadata provider = nil, want live broker metadata")
+			} else {
+				brokers, _, err := metadataProvider()
+				if err != nil {
+					t.Errorf("metadataProvider() error = %v", err)
+				}
+				wantBroker := []kafkaprotocol.MetadataBroker{{NodeID: 0, Host: "localhost", Port: 9092}}
+				if !reflect.DeepEqual(brokers, wantBroker) {
+					t.Errorf("metadata brokers = %+v, want %+v", brokers, wantBroker)
+				}
 			}
 			return nil
 		}
@@ -145,6 +160,7 @@ func TestMain(t *testing.T) {
 		t.Setenv("DATA_DIR", t.TempDir())
 		t.Setenv("PORT", "8123")
 		t.Setenv("KAFKA_LISTEN_ADDR", "127.0.0.1:9093")
+		t.Setenv("KAFKA_ADVERTISED_HOST", "broker.internal")
 		originalPrepare := prepareDatabase
 		originalListen := listenAndServe
 		originalKafkaListen := listenKafka
@@ -177,7 +193,17 @@ func TestMain(t *testing.T) {
 			}
 			return &appTestListener{}, nil
 		}
-		serveKafka = func(net.Listener, int32, []kafkaprotocol.APIVersionRange) error { return errors.New("protocol failed") }
+		serveKafka = func(_ net.Listener, _ int32, _ []kafkaprotocol.APIVersionRange, metadataProvider kafkaprotocol.MetadataProvider) error {
+			brokers, topics, err := metadataProvider()
+			if err != nil {
+				t.Errorf("metadataProvider() error = %v", err)
+			}
+			wantBrokers := []kafkaprotocol.MetadataBroker{{NodeID: 0, Host: "broker.internal", Port: 9092}}
+			if !reflect.DeepEqual(brokers, wantBrokers) || len(topics) != 0 {
+				t.Errorf("metadata snapshot = (%+v, %+v), want (%+v, empty)", brokers, topics, wantBrokers)
+			}
+			return errors.New("protocol failed")
+		}
 		exitProcess = func(code int) { exitCode = code }
 		defer func() {
 			prepareDatabase = originalPrepare
@@ -204,7 +230,9 @@ func TestMain(t *testing.T) {
 		prepareDatabase = func(context.Context, string) (*sql.DB, error) { return sql.Open("minikafka-app-test", "") }
 		listenAndServe = func(*http.Server) error { return http.ErrServerClosed }
 		listenKafka = func(string, string) (net.Listener, error) { return &appTestListener{}, nil }
-		serveKafka = func(net.Listener, int32, []kafkaprotocol.APIVersionRange) error { return nil }
+		serveKafka = func(net.Listener, int32, []kafkaprotocol.APIVersionRange, kafkaprotocol.MetadataProvider) error {
+			return nil
+		}
 		exitCode := 0
 		exitProcess = func(code int) { exitCode = code }
 		defer func() {
@@ -231,7 +259,9 @@ func TestMain(t *testing.T) {
 		listenCalled := false
 		listenAndServe = func(*http.Server) error { listenCalled = true; return nil }
 		listenKafka = func(string, string) (net.Listener, error) { return &appTestListener{}, nil }
-		serveKafka = func(net.Listener, int32, []kafkaprotocol.APIVersionRange) error { return nil }
+		serveKafka = func(net.Listener, int32, []kafkaprotocol.APIVersionRange, kafkaprotocol.MetadataProvider) error {
+			return nil
+		}
 		exitCode := 0
 		exitProcess = func(code int) { exitCode = code }
 		defer func() {
@@ -259,7 +289,9 @@ func TestMain(t *testing.T) {
 		listenCalled := false
 		listenAndServe = func(*http.Server) error { listenCalled = true; return nil }
 		listenKafka = func(string, string) (net.Listener, error) { return nil, errors.New("Kafka port unavailable") }
-		serveKafka = func(net.Listener, int32, []kafkaprotocol.APIVersionRange) error { return nil }
+		serveKafka = func(net.Listener, int32, []kafkaprotocol.APIVersionRange, kafkaprotocol.MetadataProvider) error {
+			return nil
+		}
 		exitCode := 0
 		exitProcess = func(code int) { exitCode = code }
 		defer func() {
@@ -275,6 +307,45 @@ func TestMain(t *testing.T) {
 			t.Errorf("exit code = %d, HTTP listen called = %v, want startup failure before HTTP", exitCode, listenCalled)
 		}
 	})
+
+	t.Run("metadata provider reports partition inventory errors", func(t *testing.T) {
+		dataPath := filepath.Join(t.TempDir(), "not-a-directory")
+		if err := os.WriteFile(dataPath, nil, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		t.Setenv("DATA_DIR", dataPath)
+		originalPrepare := prepareDatabase
+		originalListen := listenAndServe
+		originalKafkaListen := listenKafka
+		originalKafkaServe := serveKafka
+		originalExit := exitProcess
+		prepareDatabase = func(context.Context, string) (*sql.DB, error) { return sql.Open("minikafka-app-test", "") }
+		listenAndServe = func(*http.Server) error { return http.ErrServerClosed }
+		listenKafka = func(string, string) (net.Listener, error) { return &appTestListener{}, nil }
+		providerErrors := make(chan error, 1)
+		serveKafka = func(_ net.Listener, _ int32, _ []kafkaprotocol.APIVersionRange, metadataProvider kafkaprotocol.MetadataProvider) error {
+			_, _, err := metadataProvider()
+			providerErrors <- err
+			return err
+		}
+		exitCode := 0
+		exitProcess = func(code int) { exitCode = code }
+		defer func() {
+			prepareDatabase = originalPrepare
+			listenAndServe = originalListen
+			listenKafka = originalKafkaListen
+			serveKafka = originalKafkaServe
+			exitProcess = originalExit
+		}()
+
+		main()
+		if err := <-providerErrors; err == nil {
+			t.Error("metadataProvider() error = nil, want partition inventory error")
+		}
+		if exitCode != 0 {
+			t.Errorf("exit code = %d, want 0", exitCode)
+		}
+	})
 }
 
 type appTestListener struct {
@@ -283,12 +354,9 @@ type appTestListener struct {
 
 func (*appTestListener) Accept() (net.Conn, error) { return nil, net.ErrClosed }
 func (l *appTestListener) Close() error            { l.closed = true; return nil }
-func (*appTestListener) Addr() net.Addr            { return appTestAddr("test") }
-
-type appTestAddr string
-
-func (a appTestAddr) Network() string { return string(a) }
-func (a appTestAddr) String() string  { return string(a) }
+func (*appTestListener) Addr() net.Addr {
+	return &net.TCPAddr{IP: net.ParseIP("127.0.0.1"), Port: 9092}
+}
 
 type appLogWriter struct {
 	messages chan<- string

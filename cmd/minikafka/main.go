@@ -17,7 +17,7 @@ import (
 var prepareDatabase = postgres.PrepareDatabase
 var listenAndServe = (*http.Server).ListenAndServe
 var listenKafka = net.Listen
-var serveKafka = kafkaprotocol.ServeAPIVersionsV3
+var serveKafka = kafkaprotocol.ServeKafka
 var exitProcess = os.Exit
 
 func main() {
@@ -37,6 +37,10 @@ func main() {
 	if kafkaAddress == "" {
 		kafkaAddress = ":9092"
 	}
+	advertisedHost := os.Getenv("KAFKA_ADVERTISED_HOST")
+	if advertisedHost == "" {
+		advertisedHost = "localhost"
+	}
 
 	database, err := prepareDatabase(context.Background(), databaseURL)
 	if err != nil {
@@ -46,6 +50,9 @@ func main() {
 	}
 	defer database.Close()
 
+	brokerInstance := &broker.Broker{DataDir: dataDir}
+	defer brokerInstance.Close()
+
 	kafkaListener, err := listenKafka("tcp", kafkaAddress)
 	if err != nil {
 		log.Printf("listen for Kafka clients on %s: %v", kafkaAddress, err)
@@ -53,14 +60,25 @@ func main() {
 		return
 	}
 	defer kafkaListener.Close()
+	advertisedPort := int32(kafkaListener.Addr().(*net.TCPAddr).Port)
+	metadataProvider := func() ([]kafkaprotocol.MetadataBroker, []kafkaprotocol.MetadataTopic, error) {
+		partitions, err := brokerInstance.ListPartitions()
+		if err != nil {
+			return nil, nil, err
+		}
+		brokers := []kafkaprotocol.MetadataBroker{{NodeID: 0, Host: advertisedHost, Port: advertisedPort}}
+		return brokers, metadataTopicsFromPartitions(partitions, 0), nil
+	}
 	go func() {
-		if err := serveKafka(kafkaListener, 100*1024*1024, []kafkaprotocol.APIVersionRange{{APIKey: 18, MinVersion: 0, MaxVersion: 3}}); err != nil {
+		supportedAPIs := []kafkaprotocol.APIVersionRange{
+			{APIKey: 3, MinVersion: 0, MaxVersion: 0},
+			{APIKey: 18, MinVersion: 0, MaxVersion: 3},
+		}
+		if err := serveKafka(kafkaListener, 100*1024*1024, supportedAPIs, metadataProvider); err != nil {
 			log.Printf("serve Kafka clients: %v", err)
 		}
 	}()
 
-	brokerInstance := &broker.Broker{DataDir: dataDir}
-	defer brokerInstance.Close()
 	getCommittedOffset := func(ctx context.Context, group, topic string, partition int) (int64, error) {
 		return postgres.GetCommittedOffset(ctx, database, group, topic, partition)
 	}
