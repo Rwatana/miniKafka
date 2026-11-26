@@ -13,10 +13,15 @@ to `HandleMetadataRequestV0` and ApiVersions v3 to
 `HandleAPIVersionsRequestV3`. The handlers keep their own version and schema
 validation. API keys without an implementation return an explicit error.
 
+`HandleKafkaRequestWithFetchReader` is the reader-aware entry point for the
+Fetch v4 handler. It delegates other API keys to the original dispatcher so
+existing Produce, Metadata, and ApiVersions callers retain their current
+contract while Fetch is threaded through the connection stack in later steps.
+
 ## Tests
 
-Tests verify both API routes, response framing, and errors for a truncated
-request and an unimplemented API key.
+Tests verify the existing API routes, Fetch delegation, response framing, and
+errors for a truncated request and an unimplemented API key.
 
 ## Deliberate limits
 
