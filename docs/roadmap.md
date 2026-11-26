@@ -137,3 +137,4 @@ being described as behavior from the Node reference.
 | 80 | `kafka.ServeKafkaConnectionWithFetchReader` | Process ordered Fetch and existing Kafka APIs on a persistent connection. |
 | 81 | `kafka.ServeKafkaWithFetchReader` | Accept concurrent TCP clients and serve Fetch-capable Kafka connections. |
 | 82 | `main` | Advertise Fetch v4 and wire the broker's binary log reader into the live TCP listener. |
+| 83 | `kafka.HandleFetchRequestV4` | Return OFFSET_OUT_OF_RANGE when a client fetches beyond a partition's high watermark. |
