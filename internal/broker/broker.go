@@ -1,6 +1,7 @@
 package broker
 
 import (
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"os"
@@ -227,6 +228,112 @@ func (broker *Broker) ReadKafkaRecordBatches(topic string, partition int, fetchO
 		return nil, 0, fmt.Errorf("read Kafka topic %q partition %d: %w", topic, partition, err)
 	}
 	return records, highWatermark, nil
+}
+
+// LookupKafkaOffset resolves a partition's earliest, latest, or timestamp-matched record offset.
+func (broker *Broker) LookupKafkaOffset(topic string, partition int, timestamp int64) (int64, int64, error) {
+	if broker == nil {
+		return 0, -1, errors.New("lookup Kafka offset: nil broker")
+	}
+	if timestamp < -2 {
+		return 0, -1, fmt.Errorf("lookup Kafka offset: invalid timestamp %d", timestamp)
+	}
+	batches, highWatermark, err := broker.ReadKafkaRecordBatches(topic, partition, 0, int32(^uint32(0)>>1))
+	if err != nil {
+		return 0, -1, fmt.Errorf("lookup Kafka offset for topic %q partition %d: %w", topic, partition, err)
+	}
+	if len(batches) == 0 {
+		if timestamp == -2 || timestamp == -1 {
+			return highWatermark, -1, nil
+		}
+		return -1, -1, nil
+	}
+	if len(batches) < 61 {
+		return 0, -1, fmt.Errorf("lookup Kafka offset: truncated batch header at byte 0")
+	}
+	firstOffset := int64(binary.BigEndian.Uint64(batches[0:8]))
+	firstTimestamp := int64(binary.BigEndian.Uint64(batches[27:35]))
+	if timestamp == -2 {
+		return firstOffset, firstTimestamp, nil
+	}
+	var lastTimestamp int64
+	for cursor := 0; cursor < len(batches); {
+		if len(batches)-cursor < 61 {
+			return 0, -1, fmt.Errorf("lookup Kafka offset: truncated batch header at byte %d", cursor)
+		}
+		batch := batches[cursor:]
+		batchLength := int32(binary.BigEndian.Uint32(batch[8:12]))
+		if batchLength < 49 {
+			return 0, -1, fmt.Errorf("lookup Kafka offset: invalid batch length %d at byte %d", batchLength, cursor)
+		}
+		batchSize := int64(batchLength) + 12
+		if batchSize > int64(len(batch)) {
+			return 0, -1, fmt.Errorf("lookup Kafka offset: batch at byte %d exceeds remaining bytes", cursor)
+		}
+		if batch[16] != 2 {
+			return 0, -1, fmt.Errorf("lookup Kafka offset: unsupported magic %d at byte %d", batch[16], cursor)
+		}
+		baseOffset := int64(binary.BigEndian.Uint64(batch[0:8]))
+		baseTimestamp := int64(binary.BigEndian.Uint64(batch[27:35]))
+		lastTimestamp = int64(binary.BigEndian.Uint64(batch[35:43]))
+		if timestamp == -1 {
+			cursor += int(batchSize)
+			continue
+		}
+		attributes := int16(binary.BigEndian.Uint16(batch[21:23]))
+		if attributes&7 != 0 {
+			return 0, -1, fmt.Errorf("lookup Kafka offset: compressed batch codec %d is unsupported", attributes&7)
+		}
+		recordCount := int32(binary.BigEndian.Uint32(batch[57:61]))
+		records := batch[61:int(batchSize)]
+		recordCursor := 0
+		for recordIndex := int32(0); recordIndex < recordCount; recordIndex++ {
+			encodedLength, lengthBytes := binary.Uvarint(records[recordCursor:])
+			if lengthBytes <= 0 || encodedLength > uint64(^uint32(0)) {
+				return 0, -1, fmt.Errorf("lookup Kafka offset: invalid record length at batch byte %d", cursor)
+			}
+			recordLength := int32(encodedLength>>1) ^ -int32(encodedLength&1)
+			recordCursor += lengthBytes
+			if recordLength < 0 || int64(recordLength) > int64(len(records)-recordCursor) {
+				return 0, -1, fmt.Errorf("lookup Kafka offset: invalid record size %d at batch byte %d", recordLength, cursor)
+			}
+			recordEnd := recordCursor + int(recordLength)
+			record := records[recordCursor:recordEnd]
+			if len(record) < 1 {
+				return 0, -1, fmt.Errorf("lookup Kafka offset: missing record attributes at batch byte %d", cursor)
+			}
+			timestampDelta, timestampBytes := binary.Uvarint(record[1:])
+			if timestampBytes <= 0 {
+				return 0, -1, fmt.Errorf("lookup Kafka offset: invalid record timestamp at batch byte %d", cursor)
+			}
+			varintStart := 1 + timestampBytes
+			offsetDelta, offsetBytes := binary.Uvarint(record[varintStart:])
+			if offsetBytes <= 0 || offsetDelta > uint64(^uint32(0)) {
+				return 0, -1, fmt.Errorf("lookup Kafka offset: invalid record offset at batch byte %d", cursor)
+			}
+			signedTimestampDelta := int64(timestampDelta>>1) ^ -int64(timestampDelta&1)
+			if record[0]&8 == 0 && ((signedTimestampDelta > 0 && baseTimestamp > int64(^uint64(0)>>1)-signedTimestampDelta) || (signedTimestampDelta < 0 && baseTimestamp < -int64(^uint64(0)>>1)-1-signedTimestampDelta)) {
+				return 0, -1, fmt.Errorf("lookup Kafka offset: record timestamp overflow at batch byte %d", cursor)
+			}
+			recordTimestamp := lastTimestamp
+			if attributes&8 == 0 {
+				recordTimestamp = baseTimestamp + signedTimestampDelta
+			}
+			signedOffsetDelta := int32(offsetDelta>>1) ^ -int32(offsetDelta&1)
+			if signedOffsetDelta < 0 || baseOffset > int64(^uint64(0)>>1)-int64(signedOffsetDelta) {
+				return 0, -1, fmt.Errorf("lookup Kafka offset: record offset overflow at batch byte %d", cursor)
+			}
+			if recordTimestamp >= timestamp {
+				return baseOffset + int64(signedOffsetDelta), recordTimestamp, nil
+			}
+			recordCursor = recordEnd
+		}
+		cursor += int(batchSize)
+	}
+	if timestamp == -1 {
+		return highWatermark, lastTimestamp, nil
+	}
+	return -1, -1, nil
 }
 
 // Consume reads a bounded range of records from a topic partition.

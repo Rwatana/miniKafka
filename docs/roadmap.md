@@ -154,3 +154,4 @@ being described as behavior from the Node reference.
 | 97 | `kafka.decodeListOffsetsRequestV1` | Parse timestamp offset queries for consumer partitions. |
 | 98 | `kafka.encodeListOffsetsResponseV1` | Encode per-partition timestamp and offset results. |
 | 99 | `kafka.HandleListOffsetsRequestV1` | Resolve requested partition timestamps through broker lookup callbacks. |
+| 100 | `broker.Broker.LookupKafkaOffset` | Resolve earliest/latest and timestamp queries from Kafka record batches. |
