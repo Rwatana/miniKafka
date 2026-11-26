@@ -49,8 +49,13 @@ func HandleKafkaRequest(requestFrame []byte, maxFrameBytes int32, supportedAPIs 
 // HandleKafkaRequestWithFetchReader routes Fetch versions and ListOffsets to their broker-aware handlers and preserves existing API dispatch.
 func HandleKafkaRequestWithFetchReader(requestFrame []byte, maxFrameBytes int32, supportedAPIs []APIVersionRange, brokers []MetadataBroker, topics []MetadataTopic, appendBatch KafkaBatchAppender, readBatches KafkaBatchReader, offsetLookups ...KafkaOffsetLookup) ([]byte, error) {
 	if len(requestFrame) >= 2 && int16(binary.BigEndian.Uint16(requestFrame[:2])) == 1 {
-		if len(requestFrame) >= 4 && int16(binary.BigEndian.Uint16(requestFrame[2:4])) == 2 {
-			return HandleFetchRequestV2(requestFrame, maxFrameBytes, readBatches)
+		if len(requestFrame) >= 4 {
+			switch apiVersion := int16(binary.BigEndian.Uint16(requestFrame[2:4])); apiVersion {
+			case 2:
+				return HandleFetchRequestV2(requestFrame, maxFrameBytes, readBatches)
+			case 3:
+				return HandleFetchRequestV3(requestFrame, maxFrameBytes, readBatches)
+			}
 		}
 		return HandleFetchRequestV4(requestFrame, maxFrameBytes, readBatches)
 	}

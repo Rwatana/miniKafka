@@ -239,6 +239,37 @@ func TestHandleKafkaRequestWithFetchReaderRoutesFetchV2(t *testing.T) {
 	}
 }
 
+func TestHandleKafkaRequestWithFetchReaderRoutesFetchV3(t *testing.T) {
+	request := fetchRequestFrameV3ForTest(fetchRequestV3BodyForTest(fetchRequestV3{MaxBytes: 32, Topics: []fetchTopicRequestV4{{Name: "orders", Partitions: []fetchPartitionRequestV4{{Index: 0, FetchOffset: 4, PartitionMaxBytes: 16}}}}}))
+	called := false
+	got, err := HandleKafkaRequestWithFetchReader(request, 1024, nil, nil, nil, nil, func(topic string, partition int, offset int64, maxBytes int32) ([]byte, int64, error) {
+		called = true
+		if topic != "orders" || partition != 0 || offset != 4 || maxBytes != 16 {
+			t.Errorf("Fetch v3 callback args = (%q, %d, %d, %d)", topic, partition, offset, maxBytes)
+		}
+		return []byte{0xbb}, 5, nil
+	})
+	if err != nil {
+		t.Fatalf("HandleKafkaRequestWithFetchReader(Fetch v3) error = %v", err)
+	}
+	if !called {
+		t.Fatal("Fetch v3 batch reader was not called")
+	}
+	want, err := HandleFetchRequestV3(request, 1024, func(string, int, int64, int32) ([]byte, int64, error) { return []byte{0xbb}, 5, nil })
+	if err != nil {
+		t.Fatalf("HandleFetchRequestV3() error = %v", err)
+	}
+	if !bytes.Equal(got, want) {
+		t.Errorf("Fetch v3 response = %x, want %x", got, want)
+	}
+
+	unsupported := append([]byte(nil), request...)
+	unsupported[3] = 5
+	if _, err := HandleKafkaRequestWithFetchReader(unsupported, 1024, nil, nil, nil, nil, nil); err == nil {
+		t.Error("unsupported Fetch version error = nil, want handler error")
+	}
+}
+
 func fetchRequestFrameVersionForTest(frame []byte, version byte) []byte {
 	versioned := append([]byte(nil), frame...)
 	versioned[3] = version
