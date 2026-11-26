@@ -1,11 +1,15 @@
 package kafka
 
 import (
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
 	"net"
 )
+
+// MetadataProvider loads the current broker and topic metadata for one Kafka request.
+type MetadataProvider func() ([]MetadataBroker, []MetadataTopic, error)
 
 // ServeAPIVersionsV3Connection serves ordered ApiVersions v3 frames until the connection closes.
 func ServeAPIVersionsV3Connection(conn net.Conn, maxFrameBytes int32, supportedAPIs []APIVersionRange) error {
@@ -35,7 +39,7 @@ func ServeAPIVersionsV3Connection(conn net.Conn, maxFrameBytes int32, supportedA
 }
 
 // ServeKafkaConnection processes ordered Kafka API request frames until the connection closes.
-func ServeKafkaConnection(conn net.Conn, maxFrameBytes int32, supportedAPIs []APIVersionRange, brokers []MetadataBroker, topics []MetadataTopic) error {
+func ServeKafkaConnection(conn net.Conn, maxFrameBytes int32, supportedAPIs []APIVersionRange, metadataProvider MetadataProvider) error {
 	for {
 		requestFrame, err := ReadRequestFrame(conn, maxFrameBytes)
 		if errors.Is(err, io.EOF) {
@@ -43,6 +47,14 @@ func ServeKafkaConnection(conn net.Conn, maxFrameBytes int32, supportedAPIs []AP
 		}
 		if err != nil {
 			return fmt.Errorf("read Kafka request: %w", err)
+		}
+		var brokers []MetadataBroker
+		var topics []MetadataTopic
+		if len(requestFrame) >= 2 && int16(binary.BigEndian.Uint16(requestFrame[:2])) == 3 && metadataProvider != nil {
+			brokers, topics, err = metadataProvider()
+			if err != nil {
+				return fmt.Errorf("load Kafka metadata: %w", err)
+			}
 		}
 		response, err := HandleKafkaRequest(requestFrame, maxFrameBytes, supportedAPIs, brokers, topics)
 		if err != nil {

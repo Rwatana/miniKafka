@@ -2,6 +2,7 @@ package kafka
 
 import (
 	"bytes"
+	"errors"
 	"io"
 	"net"
 	"testing"
@@ -89,7 +90,12 @@ func TestServeKafkaConnectionProcessesMixedAPIs(t *testing.T) {
 	server, client := net.Pipe()
 	done := make(chan error, 1)
 	supported := []APIVersionRange{{APIKey: 18, MinVersion: 0, MaxVersion: 3}}
-	go func() { done <- ServeKafkaConnection(server, 1024, supported, nil, nil) }()
+	metadataCalls := 0
+	metadataProvider := func() ([]MetadataBroker, []MetadataTopic, error) {
+		metadataCalls++
+		return nil, nil, nil
+	}
+	go func() { done <- ServeKafkaConnection(server, 1024, supported, metadataProvider) }()
 	requests := appendFrame(nil, apiVersionsRequestFrameForTest(1))
 	requests = appendFrame(requests, metadataRequestFrameV0(3, 0, 2, []byte{0, 0, 0, 0}))
 	writeDone := make(chan error, 1)
@@ -115,6 +121,9 @@ func TestServeKafkaConnectionProcessesMixedAPIs(t *testing.T) {
 	if err := <-done; err != nil {
 		t.Errorf("ServeKafkaConnection() error = %v, want clean EOF", err)
 	}
+	if metadataCalls != 1 {
+		t.Errorf("metadata provider calls = %d, want only the Metadata request call", metadataCalls)
+	}
 	_ = server.Close()
 }
 
@@ -132,7 +141,7 @@ func TestServeKafkaConnectionReturnsReadAndDispatchErrors(t *testing.T) {
 			if reader == nil {
 				reader = bytes.NewReader(test.input)
 			}
-			if err := ServeKafkaConnection(&testConn{reader: reader}, 1024, nil, nil, nil); err == nil {
+			if err := ServeKafkaConnection(&testConn{reader: reader}, 1024, nil, nil); err == nil {
 				t.Error("ServeKafkaConnection() error = nil, want error")
 			}
 		})
@@ -147,7 +156,7 @@ func TestServeKafkaConnectionHandlesWrites(t *testing.T) {
 		"partial write": {reader: bytes.NewReader(request), writeLimit: 1},
 	} {
 		t.Run(name, func(t *testing.T) {
-			err := ServeKafkaConnection(conn, 1024, []APIVersionRange{{APIKey: 18, MinVersion: 0, MaxVersion: 3}}, nil, nil)
+			err := ServeKafkaConnection(conn, 1024, []APIVersionRange{{APIKey: 18, MinVersion: 0, MaxVersion: 3}}, nil)
 			if name == "partial write" {
 				if err != nil {
 					t.Errorf("ServeKafkaConnection() error = %v, want clean EOF", err)
@@ -156,6 +165,54 @@ func TestServeKafkaConnectionHandlesWrites(t *testing.T) {
 				t.Error("ServeKafkaConnection() error = nil, want write error")
 			}
 		})
+	}
+}
+
+func TestServeKafkaConnectionRefreshesMetadataPerRequest(t *testing.T) {
+	server, client := net.Pipe()
+	done := make(chan error, 1)
+	metadataCalls := 0
+	metadataProvider := func() ([]MetadataBroker, []MetadataTopic, error) {
+		metadataCalls++
+		if metadataCalls == 1 {
+			return nil, []MetadataTopic{{Name: "orders"}}, nil
+		}
+		return nil, []MetadataTopic{{Name: "events"}}, nil
+	}
+	go func() { done <- ServeKafkaConnection(server, 1024, nil, metadataProvider) }()
+
+	for correlationID, topicName := range []string{"orders", "events"} {
+		request := appendFrame(nil, metadataRequestFrameV0(3, 0, int32(correlationID+1), []byte{0, 0, 0, 0}))
+		writeDone := make(chan error, 1)
+		go func() { _, err := client.Write(request); writeDone <- err }()
+		response, err := ReadRequestFrame(client, 1024)
+		if err != nil {
+			t.Fatalf("ReadRequestFrame() error = %v", err)
+		}
+		if err := <-writeDone; err != nil {
+			t.Fatalf("write request: %v", err)
+		}
+		if got := string(response[16 : 16+len(topicName)]); got != topicName {
+			t.Errorf("response topic = %q, want %q", got, topicName)
+		}
+	}
+	_ = client.Close()
+	if err := <-done; err != nil {
+		t.Errorf("ServeKafkaConnection() error = %v, want clean EOF", err)
+	}
+	_ = server.Close()
+	if metadataCalls != 2 {
+		t.Errorf("metadata provider calls = %d, want 2", metadataCalls)
+	}
+}
+
+func TestServeKafkaConnectionReturnsMetadataProviderErrors(t *testing.T) {
+	input := appendFrame(nil, metadataRequestFrameV0(3, 0, 1, []byte{0, 0, 0, 0}))
+	metadataProvider := func() ([]MetadataBroker, []MetadataTopic, error) {
+		return nil, nil, errors.New("metadata unavailable")
+	}
+	if err := ServeKafkaConnection(&testConn{reader: bytes.NewReader(input)}, 1024, nil, metadataProvider); err == nil {
+		t.Error("ServeKafkaConnection() error = nil, want metadata provider error")
 	}
 }
 
