@@ -30,6 +30,39 @@ func TestHandleKafkaRequestDispatchesAPIVersionsV3(t *testing.T) {
 	}
 }
 
+func TestHandleKafkaRequestDispatchesProduceV3(t *testing.T) {
+	batch := recordBatchV2ForTest(1, 0, recordV2ForTest(kafkaRecordV2{Headers: []recordHeaderV2{}}))
+	request := produceRequestFrameV3ForTest(nil, 1, []produceTopicData{{Name: "orders", Partitions: []producePartitionData{{Index: 0, Records: batch}}}})
+	appended := 0
+	response, err := HandleKafkaRequest(request, 1024, nil, nil, nil, func(topic string, partition int, got []byte) (int64, error) {
+		appended++
+		if topic != "orders" || partition != 0 || string(got) != string(batch) {
+			t.Errorf("appender args = (%q, %d, %x), want (orders, 0, %x)", topic, partition, got, batch)
+		}
+		return 9, nil
+	})
+	if err != nil {
+		t.Fatalf("HandleKafkaRequest() error = %v", err)
+	}
+	if appended != 1 {
+		t.Errorf("appender calls = %d, want 1", appended)
+	}
+	want, err := encodeProduceResponseFrameV3(42, produceResponseV3{Topics: []produceTopicResponseV3{{Name: "orders", Partitions: []producePartitionResponseV3{{Index: 0, BaseOffset: 9, LogAppendTimeMs: -1}}}}}, 1024)
+	if err != nil {
+		t.Fatalf("encode expected response: %v", err)
+	}
+	if !bytes.Equal(response, want) {
+		t.Errorf("Produce response = %x, want %x", response, want)
+	}
+}
+
+func TestHandleKafkaRequestRequiresProduceAppender(t *testing.T) {
+	request := produceRequestFrameV3ForTest(nil, 1, nil)
+	if _, err := HandleKafkaRequest(request, 1024, nil, nil, nil); err == nil {
+		t.Error("HandleKafkaRequest(Produce without appender) error = nil, want explicit error")
+	}
+}
+
 func TestHandleKafkaRequestRejectsInvalidAndUnsupportedFrames(t *testing.T) {
 	for _, test := range []struct {
 		name  string
