@@ -66,6 +66,12 @@ func HandleKafkaRequestWithFetchReader(requestFrame []byte, maxFrameBytes int32,
 		}
 		return HandleListOffsetsRequestV1(requestFrame, maxFrameBytes, lookup)
 	}
+	if len(requestFrame) >= 2 && int16(binary.BigEndian.Uint16(requestFrame[:2])) == 10 {
+		if len(brokers) == 0 {
+			return nil, fmt.Errorf("dispatch FindCoordinator v1 request: no broker metadata")
+		}
+		return HandleFindCoordinatorRequestV1(requestFrame, maxFrameBytes, brokers[0])
+	}
 	if appendBatch == nil {
 		return HandleKafkaRequest(requestFrame, maxFrameBytes, supportedAPIs, brokers, topics)
 	}
