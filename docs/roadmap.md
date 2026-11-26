@@ -110,3 +110,4 @@ being described as behavior from the Node reference.
 | 53 | `kafka.decodeProduceRequestV3` | Decode Produce v3 request fields and retain partition record sets as bounded opaque bytes. |
 | 54 | `kafka.decodeRecordBatchV2` | Validate magic-v2 batch size and CRC32C, then expose the fixed batch header. |
 | 55 | `kafka.decodeSignedVarint` | Decode Kafka record fields' signed zig-zag VARINT values. |
+| 56 | `kafka.decodeUnsignedVarlong` | Decode bounded ten-byte uint64 base-128 values used by signed Kafka VARLONG fields. |
