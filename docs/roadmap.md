@@ -136,3 +136,4 @@ being described as behavior from the Node reference.
 | 79 | `kafka.HandleKafkaRequestWithFetchReader` | Route Fetch frames through the reader-aware handler while preserving existing dispatch. |
 | 80 | `kafka.ServeKafkaConnectionWithFetchReader` | Process ordered Fetch and existing Kafka APIs on a persistent connection. |
 | 81 | `kafka.ServeKafkaWithFetchReader` | Accept concurrent TCP clients and serve Fetch-capable Kafka connections. |
+| 82 | `main` | Advertise Fetch v4 and wire the broker's binary log reader into the live TCP listener. |
