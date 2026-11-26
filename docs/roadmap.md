@@ -93,3 +93,4 @@ being described as behavior from the Node reference.
 | 36 | `kafka.encodeResponseFrame` | Prefix a response body with its bounded four-byte Kafka message size. |
 | 37 | `kafka.decodeCompactString` | Decode a required compact UTF-8 string while rejecting the null sentinel. |
 | 38 | `kafka.decodeAPIVersionsRequestV3` | Parse ApiVersions v3 client identity fields and its flexible tagged-fields section. |
+| 39 | `kafka.encodeAPIVersionsResponseV3` | Encode the flexible ApiVersions v3 response body and supported API version ranges. |
