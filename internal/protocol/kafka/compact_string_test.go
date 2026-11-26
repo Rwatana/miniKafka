@@ -49,6 +49,42 @@ func TestDecodeCompactNullableStringRejectsInvalidInput(t *testing.T) {
 	}
 }
 
+func TestDecodeCompactString(t *testing.T) {
+	tests := []struct {
+		name      string
+		input     []byte
+		want      string
+		consumed  int
+		wantError bool
+	}{
+		{name: "empty", input: []byte{1, 0xff}, want: "", consumed: 1},
+		{name: "UTF-8 with remainder", input: []byte{4, 0xe7, 0x8c, 0xab, 0xff}, want: "猫", consumed: 4},
+		{name: "rejects null", input: []byte{0}, wantError: true},
+		{name: "rejects malformed length", input: []byte{0x80}, wantError: true},
+		{name: "rejects invalid UTF-8", input: []byte{2, 0xff}, wantError: true},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got, consumed, err := decodeCompactString(test.input)
+			if (err != nil) != test.wantError {
+				t.Fatalf("decodeCompactString() error = %v, wantError %v", err, test.wantError)
+			}
+			if test.wantError {
+				return
+			}
+			if got != test.want {
+				t.Errorf("decoded string = %q, want %q", got, test.want)
+			}
+			if consumed != test.consumed {
+				t.Errorf("consumed = %d, want %d", consumed, test.consumed)
+			}
+			if !bytes.Equal(test.input[consumed:], []byte{0xff}) && test.name == "UTF-8 with remainder" {
+				t.Errorf("remainder = %x, want ff", test.input[consumed:])
+			}
+		})
+	}
+}
+
 func stringPointer(value string) *string {
 	return &value
 }
