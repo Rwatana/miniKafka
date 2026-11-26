@@ -112,11 +112,11 @@ func TestMain(t *testing.T) {
 			kafkaListener = &appTestListener{}
 			return kafkaListener, nil
 		}
-		serveKafka = func(_ net.Listener, maxFrameBytes int32, supported []kafkaprotocol.APIVersionRange, metadataProvider kafkaprotocol.MetadataProvider, produceAppenders ...kafkaprotocol.KafkaBatchAppender) error {
+		serveKafka = func(_ net.Listener, maxFrameBytes int32, supported []kafkaprotocol.APIVersionRange, metadataProvider kafkaprotocol.MetadataProvider, appendBatch kafkaprotocol.KafkaBatchAppender, readBatches kafkaprotocol.KafkaBatchReader) error {
 			if maxFrameBytes != 100*1024*1024 {
 				t.Errorf("Kafka max frame size = %d, want 100 MiB", maxFrameBytes)
 			}
-			wantSupported := []kafkaprotocol.APIVersionRange{{APIKey: 0, MinVersion: 3, MaxVersion: 3}, {APIKey: 3, MinVersion: 0, MaxVersion: 0}, {APIKey: 18, MinVersion: 0, MaxVersion: 3}}
+			wantSupported := []kafkaprotocol.APIVersionRange{{APIKey: 0, MinVersion: 3, MaxVersion: 3}, {APIKey: 1, MinVersion: 4, MaxVersion: 4}, {APIKey: 3, MinVersion: 0, MaxVersion: 0}, {APIKey: 18, MinVersion: 0, MaxVersion: 3}}
 			if !reflect.DeepEqual(supported, wantSupported) {
 				t.Errorf("supported Kafka APIs = %+v, want %+v", supported, wantSupported)
 			}
@@ -132,8 +132,13 @@ func TestMain(t *testing.T) {
 					t.Errorf("metadata brokers = %+v, want %+v", brokers, wantBroker)
 				}
 			}
-			if len(produceAppenders) != 1 || produceAppenders[0] == nil {
-				t.Errorf("Produce appenders = %d, want one broker callback", len(produceAppenders))
+			if appendBatch == nil {
+				t.Error("Produce appender = nil, want broker callback")
+			}
+			if readBatches == nil {
+				t.Error("Fetch reader = nil, want broker callback")
+			} else if records, highWatermark, err := readBatches("missing", 0, 0, 1024); err != nil || len(records) != 0 || highWatermark != 0 {
+				t.Errorf("missing Fetch read = (%x, %d, %v), want (empty, 0, nil)", records, highWatermark, err)
 			}
 			return nil
 		}
@@ -196,7 +201,7 @@ func TestMain(t *testing.T) {
 			}
 			return &appTestListener{}, nil
 		}
-		serveKafka = func(_ net.Listener, _ int32, _ []kafkaprotocol.APIVersionRange, metadataProvider kafkaprotocol.MetadataProvider, _ ...kafkaprotocol.KafkaBatchAppender) error {
+		serveKafka = func(_ net.Listener, _ int32, _ []kafkaprotocol.APIVersionRange, metadataProvider kafkaprotocol.MetadataProvider, _ kafkaprotocol.KafkaBatchAppender, _ kafkaprotocol.KafkaBatchReader) error {
 			brokers, topics, err := metadataProvider()
 			if err != nil {
 				t.Errorf("metadataProvider() error = %v", err)
@@ -233,7 +238,7 @@ func TestMain(t *testing.T) {
 		prepareDatabase = func(context.Context, string) (*sql.DB, error) { return sql.Open("minikafka-app-test", "") }
 		listenAndServe = func(*http.Server) error { return http.ErrServerClosed }
 		listenKafka = func(string, string) (net.Listener, error) { return &appTestListener{}, nil }
-		serveKafka = func(net.Listener, int32, []kafkaprotocol.APIVersionRange, kafkaprotocol.MetadataProvider, ...kafkaprotocol.KafkaBatchAppender) error {
+		serveKafka = func(net.Listener, int32, []kafkaprotocol.APIVersionRange, kafkaprotocol.MetadataProvider, kafkaprotocol.KafkaBatchAppender, kafkaprotocol.KafkaBatchReader) error {
 			return nil
 		}
 		exitCode := 0
@@ -262,7 +267,7 @@ func TestMain(t *testing.T) {
 		listenCalled := false
 		listenAndServe = func(*http.Server) error { listenCalled = true; return nil }
 		listenKafka = func(string, string) (net.Listener, error) { return &appTestListener{}, nil }
-		serveKafka = func(net.Listener, int32, []kafkaprotocol.APIVersionRange, kafkaprotocol.MetadataProvider, ...kafkaprotocol.KafkaBatchAppender) error {
+		serveKafka = func(net.Listener, int32, []kafkaprotocol.APIVersionRange, kafkaprotocol.MetadataProvider, kafkaprotocol.KafkaBatchAppender, kafkaprotocol.KafkaBatchReader) error {
 			return nil
 		}
 		exitCode := 0
@@ -292,7 +297,7 @@ func TestMain(t *testing.T) {
 		listenCalled := false
 		listenAndServe = func(*http.Server) error { listenCalled = true; return nil }
 		listenKafka = func(string, string) (net.Listener, error) { return nil, errors.New("Kafka port unavailable") }
-		serveKafka = func(net.Listener, int32, []kafkaprotocol.APIVersionRange, kafkaprotocol.MetadataProvider, ...kafkaprotocol.KafkaBatchAppender) error {
+		serveKafka = func(net.Listener, int32, []kafkaprotocol.APIVersionRange, kafkaprotocol.MetadataProvider, kafkaprotocol.KafkaBatchAppender, kafkaprotocol.KafkaBatchReader) error {
 			return nil
 		}
 		exitCode := 0
@@ -326,7 +331,7 @@ func TestMain(t *testing.T) {
 		listenAndServe = func(*http.Server) error { return http.ErrServerClosed }
 		listenKafka = func(string, string) (net.Listener, error) { return &appTestListener{}, nil }
 		providerErrors := make(chan error, 1)
-		serveKafka = func(_ net.Listener, _ int32, _ []kafkaprotocol.APIVersionRange, metadataProvider kafkaprotocol.MetadataProvider, _ ...kafkaprotocol.KafkaBatchAppender) error {
+		serveKafka = func(_ net.Listener, _ int32, _ []kafkaprotocol.APIVersionRange, metadataProvider kafkaprotocol.MetadataProvider, _ kafkaprotocol.KafkaBatchAppender, _ kafkaprotocol.KafkaBatchReader) error {
 			_, _, err := metadataProvider()
 			providerErrors <- err
 			return err

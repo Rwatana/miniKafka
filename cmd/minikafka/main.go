@@ -17,7 +17,7 @@ import (
 var prepareDatabase = postgres.PrepareDatabase
 var listenAndServe = (*http.Server).ListenAndServe
 var listenKafka = net.Listen
-var serveKafka = kafkaprotocol.ServeKafka
+var serveKafka = kafkaprotocol.ServeKafkaWithFetchReader
 var exitProcess = os.Exit
 
 func main() {
@@ -72,10 +72,11 @@ func main() {
 	go func() {
 		supportedAPIs := []kafkaprotocol.APIVersionRange{
 			{APIKey: 0, MinVersion: 3, MaxVersion: 3},
+			{APIKey: 1, MinVersion: 4, MaxVersion: 4},
 			{APIKey: 3, MinVersion: 0, MaxVersion: 0},
 			{APIKey: 18, MinVersion: 0, MaxVersion: 3},
 		}
-		if err := serveKafka(kafkaListener, 100*1024*1024, supportedAPIs, metadataProvider, brokerInstance.AppendKafkaRecordBatch); err != nil {
+		if err := serveKafka(kafkaListener, 100*1024*1024, supportedAPIs, metadataProvider, brokerInstance.AppendKafkaRecordBatch, brokerInstance.ReadKafkaRecordBatches); err != nil {
 			log.Printf("serve Kafka clients: %v", err)
 		}
 	}()
