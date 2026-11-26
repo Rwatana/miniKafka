@@ -374,6 +374,38 @@ func TestServeKafkaConnectionWithFetchReaderPassesListOffsetsLookup(t *testing.T
 	}
 }
 
+func TestServeKafkaConnectionWithFetchReaderLoadsFindCoordinatorMetadata(t *testing.T) {
+	body := []byte{0, 1, 'g', 0}
+	request := appendFrame(nil, findCoordinatorRequestFrameV1ForTest(body))
+	conn := &testConn{reader: bytes.NewReader(request)}
+	metadataCalls := 0
+	provider := func() ([]MetadataBroker, []MetadataTopic, error) {
+		metadataCalls++
+		return []MetadataBroker{{NodeID: 7, Host: "coordinator.test", Port: 9093}}, nil, nil
+	}
+	if err := ServeKafkaConnectionWithFetchReader(conn, 1024, nil, provider, nil, nil); err != nil {
+		t.Fatalf("ServeKafkaConnectionWithFetchReader() error = %v", err)
+	}
+	if metadataCalls != 1 {
+		t.Errorf("metadata provider calls = %d, want 1", metadataCalls)
+	}
+	got, err := ReadRequestFrame(bytes.NewReader(conn.written.Bytes()), 1024)
+	if err != nil {
+		t.Fatalf("read FindCoordinator response: %v", err)
+	}
+	want, err := HandleFindCoordinatorRequestV1(findCoordinatorRequestFrameV1ForTest(body), 1024, MetadataBroker{NodeID: 7, Host: "coordinator.test", Port: 9093})
+	if err != nil {
+		t.Fatalf("HandleFindCoordinatorRequestV1() error = %v", err)
+	}
+	want, err = ReadRequestFrame(bytes.NewReader(want), 1024)
+	if err != nil {
+		t.Fatalf("read expected FindCoordinator response: %v", err)
+	}
+	if !bytes.Equal(got, want) {
+		t.Errorf("FindCoordinator response = %x, want %x", got, want)
+	}
+}
+
 func TestServeKafkaConnectionWithFetchReaderReturnsProtocolErrors(t *testing.T) {
 	for _, test := range []struct {
 		name   string
