@@ -2,6 +2,7 @@ package kafka
 
 import (
 	"bytes"
+	"encoding/binary"
 	"errors"
 	"io"
 	"net"
@@ -338,6 +339,41 @@ func TestServeKafkaConnectionWithFetchReaderProcessesOrderedRequests(t *testing.
 	_ = server.Close()
 }
 
+func TestServeKafkaConnectionWithFetchReaderPassesListOffsetsLookup(t *testing.T) {
+	request := appendFrame(nil, listOffsetsRequestFrameForTest(2, 1, 27, []byte{
+		0xff, 0xff, 0xff, 0xff, 0, 0, 0, 1,
+		0, 6, 'o', 'r', 'd', 'e', 'r', 's', 0, 0, 0, 1,
+		0, 0, 0, 0, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xfe,
+	}))
+	conn := &testConn{reader: bytes.NewReader(request)}
+	called := false
+	lookup := func(topic string, partition int, timestamp int64) (int64, int64, error) {
+		called = true
+		if topic != "orders" || partition != 0 || timestamp != -2 {
+			t.Errorf("offset lookup args = (%q, %d, %d), want (orders, 0, -2)", topic, partition, timestamp)
+		}
+		return 0, -1, nil
+	}
+	if err := ServeKafkaConnectionWithFetchReader(conn, 1024, nil, nil, nil, nil, lookup); err != nil {
+		t.Fatalf("ServeKafkaConnectionWithFetchReader() error = %v", err)
+	}
+	if !called {
+		t.Fatal("offset lookup was not called")
+	}
+	response, err := ReadRequestFrame(bytes.NewReader(conn.written.Bytes()), 1024)
+	if err != nil {
+		t.Fatalf("read ListOffsets response: %v", err)
+	}
+	if len(response) < 4 || binary.BigEndian.Uint32(response[:4]) != 27 {
+		t.Errorf("ListOffsets response correlation ID = %x, want 27", response[:min(4, len(response))])
+	}
+
+	missingLookupConn := &testConn{reader: bytes.NewReader(request)}
+	if err := ServeKafkaConnectionWithFetchReader(missingLookupConn, 1024, nil, nil, nil, nil); err == nil {
+		t.Error("missing ListOffsets lookup error = nil, want handler error")
+	}
+}
+
 func TestServeKafkaConnectionWithFetchReaderReturnsProtocolErrors(t *testing.T) {
 	for _, test := range []struct {
 		name   string
@@ -388,6 +424,7 @@ func TestServeKafkaConnectionWithFetchReaderHandlesSocketWrites(t *testing.T) {
 
 type testConn struct {
 	reader     *bytes.Reader
+	written    bytes.Buffer
 	writeErr   error
 	zeroWrite  bool
 	writeLimit int
@@ -402,9 +439,9 @@ func (c *testConn) Write(p []byte) (int, error) {
 		return 0, nil
 	}
 	if c.writeLimit > 0 && len(p) > c.writeLimit {
-		return c.writeLimit, nil
+		p = p[:c.writeLimit]
 	}
-	return len(p), nil
+	return c.written.Write(p)
 }
 func (*testConn) Close() error                     { return nil }
 func (*testConn) LocalAddr() net.Addr              { return testAddr("local") }

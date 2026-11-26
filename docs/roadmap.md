@@ -156,3 +156,4 @@ being described as behavior from the Node reference.
 | 99 | `kafka.HandleListOffsetsRequestV1` | Resolve requested partition timestamps through broker lookup callbacks. |
 | 100 | `broker.Broker.LookupKafkaOffset` | Resolve earliest/latest and timestamp queries from Kafka record batches. |
 | 101 | `kafka.HandleKafkaRequestWithFetchReader` | Route ListOffsets v1 frames through the broker-aware dispatcher. |
+| 102 | `kafka.ServeKafkaConnectionWithFetchReader` | Pass the offset lookup callback through persistent Kafka connections. |
