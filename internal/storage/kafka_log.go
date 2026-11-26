@@ -11,6 +11,8 @@ import (
 )
 
 var copyKafkaBatchChecksum = io.CopyN
+var writeKafkaBatch = func(file *os.File, batch []byte) (int, error) { return file.Write(batch) }
+var syncKafkaPartitionLog = func(file *os.File) error { return file.Sync() }
 
 // KafkaPartitionLog is an appendable binary log dedicated to Kafka record batches.
 type KafkaPartitionLog struct {
@@ -90,4 +92,49 @@ func RecoverKafkaPartitionLog(log *KafkaPartitionLog) error {
 	}
 	log.nextOffset = nextOffset
 	return nil
+}
+
+// AppendKafkaRecordBatch assigns the next base offset and durably appends one validated batch.
+func AppendKafkaRecordBatch(log *KafkaPartitionLog, batch []byte) (int64, error) {
+	if log == nil || log.file == nil {
+		return 0, fmt.Errorf("append Kafka record batch: nil log")
+	}
+	if len(batch) < 61 {
+		return 0, fmt.Errorf("append Kafka record batch: size %d is smaller than header size 61", len(batch))
+	}
+	batchLength := int32(binary.BigEndian.Uint32(batch[8:12]))
+	if batchLength < 49 || int64(batchLength)+12 != int64(len(batch)) {
+		return 0, fmt.Errorf("append Kafka record batch: invalid batch length %d for size %d", batchLength, len(batch))
+	}
+	if batch[16] != 2 {
+		return 0, fmt.Errorf("append Kafka record batch: unsupported magic %d", batch[16])
+	}
+	lastOffsetDelta := int32(binary.BigEndian.Uint32(batch[23:27]))
+	if lastOffsetDelta < 0 || int32(binary.BigEndian.Uint32(batch[57:61])) < 0 {
+		return 0, fmt.Errorf("append Kafka record batch: negative offset delta or record count")
+	}
+	if log.nextOffset > math.MaxInt64-int64(lastOffsetDelta)-1 {
+		return 0, fmt.Errorf("append Kafka record batch: partition offset overflow")
+	}
+	info, err := log.file.Stat()
+	if err != nil {
+		return 0, fmt.Errorf("stat Kafka partition log before append: %w", err)
+	}
+	baseOffset := log.nextOffset
+	encoded := append([]byte(nil), batch...)
+	binary.BigEndian.PutUint64(encoded[0:8], uint64(baseOffset))
+	written, err := writeKafkaBatch(log.file, encoded)
+	if err != nil || written != len(encoded) {
+		_ = log.file.Truncate(info.Size())
+		if err != nil {
+			return 0, fmt.Errorf("append Kafka record batch: %w", err)
+		}
+		return 0, io.ErrShortWrite
+	}
+	if err := syncKafkaPartitionLog(log.file); err != nil {
+		_ = log.file.Truncate(info.Size())
+		return 0, fmt.Errorf("sync Kafka record batch: %w", err)
+	}
+	log.nextOffset = baseOffset + int64(lastOffsetDelta) + 1
+	return baseOffset, nil
 }
