@@ -118,3 +118,4 @@ being described as behavior from the Node reference.
 | 61 | `kafka.encodeProduceResponseV3` | Encode Produce v3 topic and partition outcomes in legacy schema order. |
 | 62 | `kafka.encodeProduceResponseFrameV3` | Add the matching correlation header and bounded size prefix to Produce v3 response bodies. |
 | 63 | `storage.OpenKafkaPartitionLog` | Open an appendable binary Kafka partition log alongside the reference JSON log. |
+| 64 | `storage.RecoverKafkaPartitionLog` | Validate stored magic-v2 batches and restore the next partition offset. |
