@@ -172,3 +172,4 @@ being described as behavior from the Node reference.
 | 115 | `kafka.HandleKafkaRequestWithFetchReader` | Route FindCoordinator v1 using broker metadata. |
 | 116 | `kafka.ServeKafkaConnectionWithFetchReader` | Load broker metadata for FindCoordinator requests on persistent connections. |
 | 117 | `main` | Advertise FindCoordinator v1 after the listener route is connected. |
+| 118 | `kafka.decodeJoinGroupRequestV0` | Decode a non-flexible JoinGroup v0 request body. |
