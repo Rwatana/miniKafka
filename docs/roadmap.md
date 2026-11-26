@@ -96,3 +96,4 @@ being described as behavior from the Node reference.
 | 39 | `kafka.encodeAPIVersionsResponseV3` | Encode the flexible ApiVersions v3 response body and supported API version ranges. |
 | 40 | `kafka.encodeAPIVersionsResponseFrameV3` | Assemble the v0 response header, ApiVersions v3 body, and bounded outer frame. |
 | 41 | `kafka.HandleAPIVersionsRequestV3` | Validate one v3 request and return its correlation-matched response frame. |
+| 42 | `kafka.ServeAPIVersionsV3Connection` | Process ordered, size-delimited ApiVersions requests until the connection reaches EOF. |
