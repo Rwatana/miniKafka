@@ -30,6 +30,25 @@ func TestHandleKafkaRequestDispatchesAPIVersionsV3(t *testing.T) {
 	}
 }
 
+func TestHandleKafkaRequestDispatchesAPIVersionsV0AndRejectsUnsupportedVersions(t *testing.T) {
+	request := []byte{0, 18, 0, 0, 0, 0, 0, 9, 0xff, 0xff}
+	supported := []APIVersionRange{{APIKey: 3, MinVersion: 0, MaxVersion: 0}}
+	response, err := HandleKafkaRequest(request, 1024, supported, nil, nil)
+	if err != nil {
+		t.Fatalf("HandleKafkaRequest(ApiVersions v0) error = %v", err)
+	}
+	want := []byte{0, 0, 0, 16, 0, 0, 0, 9, 0, 0, 0, 0, 0, 1, 0, 3, 0, 0, 0, 0}
+	if !bytes.Equal(response, want) {
+		t.Errorf("ApiVersions v0 response = %x, want %x", response, want)
+	}
+
+	for _, frame := range [][]byte{{0, 18}, {0, 18, 0, 2}} {
+		if _, err := HandleKafkaRequest(frame, 1024, supported, nil, nil); err == nil {
+			t.Errorf("HandleKafkaRequest(ApiVersions %x) error = nil, want error", frame)
+		}
+	}
+}
+
 func TestHandleKafkaRequestDispatchesProduceV3(t *testing.T) {
 	batch := recordBatchV2ForTest(1, 0, recordV2ForTest(kafkaRecordV2{Headers: []recordHeaderV2{}}))
 	request := produceRequestFrameV3ForTest(nil, 1, []produceTopicData{{Name: "orders", Partitions: []producePartitionData{{Index: 0, Records: batch}}}})
