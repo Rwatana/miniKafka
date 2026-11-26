@@ -121,3 +121,4 @@ being described as behavior from the Node reference.
 | 64 | `storage.RecoverKafkaPartitionLog` | Validate stored magic-v2 batches and restore the next partition offset. |
 | 65 | `storage.AppendKafkaRecordBatch` | Assign the next base offset and durably append one validated magic-v2 batch. |
 | 66 | `storage.CloseKafkaPartitionLog` | Release one Kafka binary partition log's file handle. |
+| 67 | `broker.Broker.AppendKafkaRecordBatch` | Own, recover, serialize, and append validated Kafka batches by topic partition. |

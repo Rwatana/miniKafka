@@ -16,6 +16,10 @@ var appendBrokerRecord = storage.AppendRecord
 var appendBrokerRecords = storage.AppendRecords
 var readBrokerDirectory = os.ReadDir
 var openBrokerPartitionLog = storage.OpenPartitionLog
+var openBrokerKafkaPartitionLog = storage.OpenKafkaPartitionLog
+var recoverBrokerKafkaPartitionLog = storage.RecoverKafkaPartitionLog
+var appendBrokerKafkaRecordBatch = storage.AppendKafkaRecordBatch
+var closeBrokerKafkaPartitionLog = storage.CloseKafkaPartitionLog
 
 // PartitionInfo identifies one topic partition found in the broker data directory.
 type PartitionInfo struct {
@@ -30,9 +34,10 @@ type partitionKey struct {
 
 // Broker owns the data directory and open partition logs for one broker.
 type Broker struct {
-	DataDir string
-	mu      sync.Mutex
-	logs    map[partitionKey]*storage.PartitionLog
+	DataDir   string
+	mu        sync.Mutex
+	logs      map[partitionKey]*storage.PartitionLog
+	kafkaLogs map[partitionKey]*storage.KafkaPartitionLog
 }
 
 // Produce appends a record to the selected topic partition and returns its offset.
@@ -122,6 +127,48 @@ func (broker *Broker) ProduceBatch(topic string, partition int, records []storag
 		return nil, fmt.Errorf("produce topic %q partition %d batch: %w", topic, partition, err)
 	}
 	return offsets, nil
+}
+
+// AppendKafkaRecordBatch appends a validated Kafka batch to one broker-owned topic partition.
+func (broker *Broker) AppendKafkaRecordBatch(topic string, partition int, batch []byte) (int64, error) {
+	if broker == nil {
+		return 0, errors.New("append Kafka record batch: nil broker")
+	}
+	broker.mu.Lock()
+	defer broker.mu.Unlock()
+
+	if broker.DataDir == "" {
+		return 0, errors.New("append Kafka record batch: empty data directory")
+	}
+	if topic == "" || strings.ContainsAny(topic, `/\\`) {
+		return 0, fmt.Errorf("append Kafka record batch: invalid topic %q", topic)
+	}
+	if partition < 0 {
+		return 0, fmt.Errorf("append Kafka record batch: negative partition %d", partition)
+	}
+	if broker.kafkaLogs == nil {
+		broker.kafkaLogs = make(map[partitionKey]*storage.KafkaPartitionLog)
+	}
+	identity := partitionKey{topic: topic, partition: partition}
+	log := broker.kafkaLogs[identity]
+	if log == nil {
+		filename := fmt.Sprintf("%s__%d.kafka.log", topic, partition)
+		openedLog, err := openBrokerKafkaPartitionLog(filepath.Join(broker.DataDir, filename))
+		if err != nil {
+			return 0, fmt.Errorf("open Kafka topic %q partition %d: %w", topic, partition, err)
+		}
+		if err := recoverBrokerKafkaPartitionLog(openedLog); err != nil {
+			_ = closeBrokerKafkaPartitionLog(openedLog)
+			return 0, fmt.Errorf("recover Kafka topic %q partition %d: %w", topic, partition, err)
+		}
+		log = openedLog
+		broker.kafkaLogs[identity] = log
+	}
+	baseOffset, err := appendBrokerKafkaRecordBatch(log, batch)
+	if err != nil {
+		return 0, fmt.Errorf("append Kafka topic %q partition %d: %w", topic, partition, err)
+	}
+	return baseOffset, nil
 }
 
 // Consume reads a bounded range of records from a topic partition.
