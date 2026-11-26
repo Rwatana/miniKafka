@@ -315,6 +315,25 @@ func TestAppendKafkaRecordBatchRollsBackWriteAndSyncFailures(t *testing.T) {
 	}
 }
 
+func TestCloseKafkaPartitionLog(t *testing.T) {
+	if err := CloseKafkaPartitionLog(nil); err == nil {
+		t.Error("CloseKafkaPartitionLog(nil) error = nil, want nil-log error")
+	}
+	log, err := OpenKafkaPartitionLog(filepath.Join(t.TempDir(), "partition.log"))
+	if err != nil {
+		t.Fatalf("OpenKafkaPartitionLog() error = %v", err)
+	}
+	if err := CloseKafkaPartitionLog(log); err != nil {
+		t.Fatalf("CloseKafkaPartitionLog() error = %v", err)
+	}
+	if err := CloseKafkaPartitionLog(log); err == nil {
+		t.Error("CloseKafkaPartitionLog(closed) error = nil, want close error")
+	}
+	if err := CloseKafkaPartitionLog(&KafkaPartitionLog{}); err == nil {
+		t.Error("CloseKafkaPartitionLog(missing file) error = nil, want nil-file error")
+	}
+}
+
 func kafkaBatchForTest(baseOffset int64, lastOffsetDelta, recordCount int32) []byte {
 	batch := make([]byte, 61)
 	binary.BigEndian.PutUint64(batch[0:8], uint64(baseOffset))
