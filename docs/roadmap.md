@@ -153,3 +153,4 @@ being described as behavior from the Node reference.
 | 96 | `main` | Advertise the implemented Metadata v1 schema to Kafka clients. |
 | 97 | `kafka.decodeListOffsetsRequestV1` | Parse timestamp offset queries for consumer partitions. |
 | 98 | `kafka.encodeListOffsetsResponseV1` | Encode per-partition timestamp and offset results. |
+| 99 | `kafka.HandleListOffsetsRequestV1` | Resolve requested partition timestamps through broker lookup callbacks. |
