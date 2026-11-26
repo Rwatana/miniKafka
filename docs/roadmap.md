@@ -160,3 +160,4 @@ being described as behavior from the Node reference.
 | 103 | `kafka.ServeKafkaWithFetchReader` | Pass the offset lookup callback through the TCP accept loop. |
 | 104 | `main` | Advertise ListOffsets v1 and connect it to the broker's timestamp index. |
 | 105 | `kafka.decodeFetchRequestV2` | Parse the older Fetch request schema used by Kafka client readers. |
+| 106 | `kafka.encodeFetchResponseV2` | Encode the v2 Fetch response and its nullable record sets. |
