@@ -131,3 +131,4 @@ being described as behavior from the Node reference.
 | 74 | `kafka.encodeFetchResponseV4` | Encode Fetch v4 partition watermarks, nullable transactions, and record bytes. |
 | 75 | `storage.ReadKafkaRecordBatches` | Read whole batches from a requested offset and report the partition high watermark. |
 | 76 | `broker.Broker.Close` | Close both JSON and Kafka binary partition logs during broker shutdown. |
+| 77 | `broker.Broker.ReadKafkaRecordBatches` | Read and recover Kafka batches through broker-owned logs without creating missing partitions. |
