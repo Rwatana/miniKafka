@@ -3,6 +3,7 @@ package kafka
 import (
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/Rwatana/miniKafka/internal/kafkaerr"
 )
@@ -31,45 +32,59 @@ func HandleFetchRequestV4(requestFrame []byte, maxFrameBytes int32, readBatches 
 		return nil, fmt.Errorf("handle Fetch v4 request body: %w", err)
 	}
 
-	response := fetchResponseV4{Topics: make([]fetchTopicResponseV4, 0, len(request.Topics))}
-	var returnedRecordBytes int64
-	for _, topic := range request.Topics {
-		topicResponse := fetchTopicResponseV4{Name: topic.Name, Partitions: make([]fetchPartitionResponseV4, 0, len(topic.Partitions))}
-		for _, partition := range topic.Partitions {
-			partitionResponse := fetchPartitionResponseV4{Index: partition.Index}
-			remainingBytes := int64(request.MaxBytes) - returnedRecordBytes
-			if remainingBytes < 0 {
-				remainingBytes = 0
-			}
-			readerMaxBytes := partition.PartitionMaxBytes
-			if int64(readerMaxBytes) > remainingBytes {
-				readerMaxBytes = int32(remainingBytes)
-			}
-			records, highWatermark, err := readBatches(topic.Name, int(partition.Index), partition.FetchOffset, readerMaxBytes)
-			if err != nil {
-				partitionResponse.ErrorCode = -1
-				if errors.Is(err, kafkaerr.ErrUnknownTopicOrPartition) {
-					partitionResponse.ErrorCode = 3
+	deadline := time.Now().Add(time.Duration(request.MaxWaitMs) * time.Millisecond)
+	var response fetchResponseV4
+	for {
+		response = fetchResponseV4{Topics: make([]fetchTopicResponseV4, 0, len(request.Topics))}
+		var returnedRecordBytes int64
+		for _, topic := range request.Topics {
+			topicResponse := fetchTopicResponseV4{Name: topic.Name, Partitions: make([]fetchPartitionResponseV4, 0, len(topic.Partitions))}
+			for _, partition := range topic.Partitions {
+				partitionResponse := fetchPartitionResponseV4{Index: partition.Index}
+				remainingBytes := int64(request.MaxBytes) - returnedRecordBytes
+				if remainingBytes < 0 {
+					remainingBytes = 0
 				}
-				partitionResponse.HighWatermark = -1
-				partitionResponse.LastStableOffset = -1
-			} else if partition.FetchOffset > highWatermark {
-				partitionResponse.ErrorCode = 1
-				partitionResponse.HighWatermark = highWatermark
-				partitionResponse.LastStableOffset = highWatermark
-			} else {
-				partitionResponse.HighWatermark = highWatermark
-				partitionResponse.LastStableOffset = highWatermark
-				if returnedRecordBytes > 0 && int64(len(records)) > remainingBytes {
-					partitionResponse.Records = nil
+				readerMaxBytes := partition.PartitionMaxBytes
+				if int64(readerMaxBytes) > remainingBytes {
+					readerMaxBytes = int32(remainingBytes)
+				}
+				records, highWatermark, err := readBatches(topic.Name, int(partition.Index), partition.FetchOffset, readerMaxBytes)
+				if err != nil {
+					partitionResponse.ErrorCode = -1
+					if errors.Is(err, kafkaerr.ErrUnknownTopicOrPartition) {
+						partitionResponse.ErrorCode = 3
+					}
+					partitionResponse.HighWatermark = -1
+					partitionResponse.LastStableOffset = -1
+				} else if partition.FetchOffset > highWatermark {
+					partitionResponse.ErrorCode = 1
+					partitionResponse.HighWatermark = highWatermark
+					partitionResponse.LastStableOffset = highWatermark
 				} else {
-					partitionResponse.Records = records
-					returnedRecordBytes += int64(len(records))
+					partitionResponse.HighWatermark = highWatermark
+					partitionResponse.LastStableOffset = highWatermark
+					if returnedRecordBytes > 0 && int64(len(records)) > remainingBytes {
+						partitionResponse.Records = nil
+					} else {
+						partitionResponse.Records = records
+						returnedRecordBytes += int64(len(records))
+					}
 				}
+				topicResponse.Partitions = append(topicResponse.Partitions, partitionResponse)
 			}
-			topicResponse.Partitions = append(topicResponse.Partitions, partitionResponse)
+			response.Topics = append(response.Topics, topicResponse)
 		}
-		response.Topics = append(response.Topics, topicResponse)
+		if returnedRecordBytes >= int64(request.MinBytes) || request.MaxWaitMs == 0 || !time.Now().Before(deadline) {
+			break
+		}
+		wait := 10 * time.Millisecond
+		if remaining := time.Until(deadline); remaining < wait {
+			wait = remaining
+		}
+		if wait > 0 {
+			time.Sleep(wait)
+		}
 	}
 
 	responseBody, err := encodeFetchHandlerResponseBody(response)
