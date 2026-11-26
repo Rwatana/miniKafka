@@ -72,3 +72,38 @@ func ServeKafkaConnection(conn net.Conn, maxFrameBytes int32, supportedAPIs []AP
 		}
 	}
 }
+
+// ServeKafkaConnectionWithFetchReader processes requests through the reader-aware Fetch dispatcher until EOF.
+func ServeKafkaConnectionWithFetchReader(conn net.Conn, maxFrameBytes int32, supportedAPIs []APIVersionRange, metadataProvider MetadataProvider, appendBatch KafkaBatchAppender, readBatches KafkaBatchReader) error {
+	for {
+		requestFrame, err := ReadRequestFrame(conn, maxFrameBytes)
+		if errors.Is(err, io.EOF) {
+			return nil
+		}
+		if err != nil {
+			return fmt.Errorf("read Kafka request: %w", err)
+		}
+		var brokers []MetadataBroker
+		var topics []MetadataTopic
+		if len(requestFrame) >= 2 && int16(binary.BigEndian.Uint16(requestFrame[:2])) == 3 && metadataProvider != nil {
+			brokers, topics, err = metadataProvider()
+			if err != nil {
+				return fmt.Errorf("load Kafka metadata: %w", err)
+			}
+		}
+		response, err := HandleKafkaRequestWithFetchReader(requestFrame, maxFrameBytes, supportedAPIs, brokers, topics, appendBatch, readBatches)
+		if err != nil {
+			return fmt.Errorf("handle Kafka request: %w", err)
+		}
+		for len(response) > 0 {
+			written, err := conn.Write(response)
+			if err != nil {
+				return fmt.Errorf("write Kafka response: %w", err)
+			}
+			if written == 0 {
+				return io.ErrShortWrite
+			}
+			response = response[written:]
+		}
+	}
+}
