@@ -41,3 +41,21 @@ func ServeKafka(listener net.Listener, maxFrameBytes int32, supportedAPIs []APIV
 		}()
 	}
 }
+
+// ServeKafkaWithFetchReader accepts clients and serves connections with a broker-backed Fetch reader.
+func ServeKafkaWithFetchReader(listener net.Listener, maxFrameBytes int32, supportedAPIs []APIVersionRange, metadataProvider MetadataProvider, appendBatch KafkaBatchAppender, readBatches KafkaBatchReader) error {
+	for {
+		conn, err := listener.Accept()
+		if errors.Is(err, net.ErrClosed) {
+			return nil
+		}
+		if err != nil {
+			return fmt.Errorf("accept Kafka TCP connection: %w", err)
+		}
+		connection := conn
+		go func() {
+			_ = ServeKafkaConnectionWithFetchReader(connection, maxFrameBytes, supportedAPIs, metadataProvider, appendBatch, readBatches)
+			_ = connection.Close()
+		}()
+	}
+}

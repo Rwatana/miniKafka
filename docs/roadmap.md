@@ -135,3 +135,4 @@ being described as behavior from the Node reference.
 | 78 | `kafka.HandleFetchRequestV4` | Read requested partition batches and return a correlation-matched Fetch response. |
 | 79 | `kafka.HandleKafkaRequestWithFetchReader` | Route Fetch frames through the reader-aware handler while preserving existing dispatch. |
 | 80 | `kafka.ServeKafkaConnectionWithFetchReader` | Process ordered Fetch and existing Kafka APIs on a persistent connection. |
+| 81 | `kafka.ServeKafkaWithFetchReader` | Accept concurrent TCP clients and serve Fetch-capable Kafka connections. |

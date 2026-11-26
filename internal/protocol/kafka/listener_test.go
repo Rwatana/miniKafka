@@ -173,3 +173,61 @@ func TestServeKafkaReturnsCleanlyWhenListenerIsClosed(t *testing.T) {
 		t.Errorf("ServeKafka() error = %v, want nil", err)
 	}
 }
+
+func TestServeKafkaWithFetchReaderAcceptsFetchClient(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("net.Listen() error = %v", err)
+	}
+	done := make(chan error, 1)
+	readerCalls := make(chan string, 1)
+	go func() {
+		done <- ServeKafkaWithFetchReader(listener, 1024, nil, nil, nil, func(topic string, partition int, offset int64, maxBytes int32) ([]byte, int64, error) {
+			readerCalls <- topic
+			if partition != 0 || offset != 4 || maxBytes != 128 {
+				t.Errorf("Fetch reader args = (%d, %d, %d)", partition, offset, maxBytes)
+			}
+			return []byte{0xaa}, 5, nil
+		})
+	}()
+	client, err := net.Dial("tcp", listener.Addr().String())
+	if err != nil {
+		t.Fatalf("net.Dial() error = %v", err)
+	}
+	request := fetchRequestFrameV4ForTest(fetchRequestV4BodyForTest(fetchRequestV4{Topics: []fetchTopicRequestV4{{Name: "orders", Partitions: []fetchPartitionRequestV4{{Index: 0, FetchOffset: 4, PartitionMaxBytes: 128}}}}}))
+	if _, err := client.Write(appendFrame(nil, request)); err != nil {
+		t.Fatalf("write Fetch request: %v", err)
+	}
+	response, err := ReadRequestFrame(client, 1024)
+	if err != nil {
+		t.Fatalf("read Fetch response: %v", err)
+	}
+	if len(response) < 4 || int32(response[3]) != 42 {
+		t.Errorf("Fetch response correlation ID = %x, want 42", response[:min(4, len(response))])
+	}
+	if topic := <-readerCalls; topic != "orders" {
+		t.Errorf("reader topic = %q, want orders", topic)
+	}
+	_ = client.Close()
+	_ = listener.Close()
+	if err := <-done; err != nil {
+		t.Errorf("ServeKafkaWithFetchReader() error = %v, want clean listener close", err)
+	}
+}
+
+func TestServeKafkaWithFetchReaderHandlesListenerErrors(t *testing.T) {
+	wantErr := errors.New("accept failed")
+	if err := ServeKafkaWithFetchReader(&errorListener{err: wantErr}, 1024, nil, nil, nil, nil); !errors.Is(err, wantErr) {
+		t.Errorf("ServeKafkaWithFetchReader() error = %v, want %v", err, wantErr)
+	}
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := listener.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := ServeKafkaWithFetchReader(listener, 1024, nil, nil, nil, nil); err != nil {
+		t.Errorf("ServeKafkaWithFetchReader(closed listener) error = %v, want nil", err)
+	}
+}
