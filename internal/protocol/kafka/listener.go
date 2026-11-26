@@ -25,7 +25,7 @@ func ServeAPIVersionsV3(listener net.Listener, maxFrameBytes int32, supportedAPI
 }
 
 // ServeKafka accepts clients and serves supported Kafka APIs on each connection.
-func ServeKafka(listener net.Listener, maxFrameBytes int32, supportedAPIs []APIVersionRange, metadataProvider MetadataProvider) error {
+func ServeKafka(listener net.Listener, maxFrameBytes int32, supportedAPIs []APIVersionRange, metadataProvider MetadataProvider, produceAppenders ...KafkaBatchAppender) error {
 	for {
 		conn, err := listener.Accept()
 		if errors.Is(err, net.ErrClosed) {
@@ -36,7 +36,7 @@ func ServeKafka(listener net.Listener, maxFrameBytes int32, supportedAPIs []APIV
 		}
 		connection := conn
 		go func() {
-			_ = ServeKafkaConnection(connection, maxFrameBytes, supportedAPIs, metadataProvider)
+			_ = ServeKafkaConnection(connection, maxFrameBytes, supportedAPIs, metadataProvider, produceAppenders...)
 			_ = connection.Close()
 		}()
 	}
