@@ -101,3 +101,4 @@ being described as behavior from the Node reference.
 | 44 | `main` | Open the Kafka protocol listener alongside the existing HTTP application and expose port 9092 in Compose. |
 | 45 | `kafka.decodeMetadataRequestV0` | Decode Metadata v0's legacy topic array and UTF-8 STRING fields. |
 | 46 | `kafka.encodeMetadataResponseV0` | Encode broker, topic, and partition metadata using the legacy v0 schema. |
+| 47 | `kafka.HandleMetadataRequestV0` | Match requested topics, return unknown-topic errors, and frame a correlation-matched Metadata v0 response. |
