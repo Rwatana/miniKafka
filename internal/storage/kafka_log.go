@@ -138,3 +138,14 @@ func AppendKafkaRecordBatch(log *KafkaPartitionLog, batch []byte) (int64, error)
 	log.nextOffset = baseOffset + int64(lastOffsetDelta) + 1
 	return baseOffset, nil
 }
+
+// CloseKafkaPartitionLog releases the file owned by a Kafka partition-log handle.
+func CloseKafkaPartitionLog(log *KafkaPartitionLog) error {
+	if log == nil || log.file == nil {
+		return fmt.Errorf("close Kafka partition log: nil log")
+	}
+	if err := log.file.Close(); err != nil {
+		return fmt.Errorf("close Kafka partition log: %w", err)
+	}
+	return nil
+}
