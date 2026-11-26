@@ -46,10 +46,17 @@ func HandleKafkaRequest(requestFrame []byte, maxFrameBytes int32, supportedAPIs 
 	}
 }
 
-// HandleKafkaRequestWithFetchReader routes Fetch to its reader-aware handler and preserves existing API dispatch.
-func HandleKafkaRequestWithFetchReader(requestFrame []byte, maxFrameBytes int32, supportedAPIs []APIVersionRange, brokers []MetadataBroker, topics []MetadataTopic, appendBatch KafkaBatchAppender, readBatches KafkaBatchReader) ([]byte, error) {
+// HandleKafkaRequestWithFetchReader routes Fetch and ListOffsets to their broker-aware handlers and preserves existing API dispatch.
+func HandleKafkaRequestWithFetchReader(requestFrame []byte, maxFrameBytes int32, supportedAPIs []APIVersionRange, brokers []MetadataBroker, topics []MetadataTopic, appendBatch KafkaBatchAppender, readBatches KafkaBatchReader, offsetLookups ...KafkaOffsetLookup) ([]byte, error) {
 	if len(requestFrame) >= 2 && int16(binary.BigEndian.Uint16(requestFrame[:2])) == 1 {
 		return HandleFetchRequestV4(requestFrame, maxFrameBytes, readBatches)
+	}
+	if len(requestFrame) >= 2 && int16(binary.BigEndian.Uint16(requestFrame[:2])) == 2 {
+		var lookup KafkaOffsetLookup
+		if len(offsetLookups) > 0 {
+			lookup = offsetLookups[0]
+		}
+		return HandleListOffsetsRequestV1(requestFrame, maxFrameBytes, lookup)
 	}
 	if appendBatch == nil {
 		return HandleKafkaRequest(requestFrame, maxFrameBytes, supportedAPIs, brokers, topics)
