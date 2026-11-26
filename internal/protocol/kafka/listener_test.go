@@ -72,3 +72,63 @@ func TestServeAPIVersionsV3ReturnsCleanlyWhenListenerIsClosed(t *testing.T) {
 		t.Errorf("ServeAPIVersionsV3() error = %v, want nil", err)
 	}
 }
+
+func TestServeKafkaAcceptsMixedAPIClient(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("net.Listen() error = %v", err)
+	}
+	metadataCalls := 0
+	metadataProvider := func() ([]MetadataBroker, []MetadataTopic, error) {
+		metadataCalls++
+		return nil, nil, nil
+	}
+	done := make(chan error, 1)
+	supported := []APIVersionRange{{APIKey: 18, MinVersion: 0, MaxVersion: 3}}
+	go func() { done <- ServeKafka(listener, 1024, supported, metadataProvider) }()
+
+	client, err := net.Dial("tcp", listener.Addr().String())
+	if err != nil {
+		t.Fatalf("net.Dial() error = %v", err)
+	}
+	for _, request := range [][]byte{
+		apiVersionsRequestFrameForTest(9),
+		metadataRequestFrameV0(3, 0, 10, []byte{0, 0, 0, 0}),
+	} {
+		if _, err := client.Write(appendFrame(nil, request)); err != nil {
+			t.Fatalf("write request: %v", err)
+		}
+		if _, err := ReadRequestFrame(client, 1024); err != nil {
+			t.Fatalf("ReadRequestFrame() error = %v", err)
+		}
+	}
+	if metadataCalls != 1 {
+		t.Errorf("metadata provider calls = %d, want 1", metadataCalls)
+	}
+	_ = client.Close()
+	_ = listener.Close()
+	if err := <-done; err != nil {
+		t.Errorf("ServeKafka() error = %v, want clean listener close", err)
+	}
+}
+
+func TestServeKafkaReturnsAcceptErrors(t *testing.T) {
+	wantErr := errors.New("accept failed")
+	listener := &errorListener{err: wantErr}
+	if err := ServeKafka(listener, 1024, nil, nil); !errors.Is(err, wantErr) {
+		t.Errorf("ServeKafka() error = %v, want %v", err, wantErr)
+	}
+}
+
+func TestServeKafkaReturnsCleanlyWhenListenerIsClosed(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("net.Listen() error = %v", err)
+	}
+	if err := listener.Close(); err != nil {
+		t.Fatalf("listener.Close() error = %v", err)
+	}
+	if err := ServeKafka(listener, 1024, nil, nil); err != nil {
+		t.Errorf("ServeKafka() error = %v, want nil", err)
+	}
+}
