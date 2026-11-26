@@ -11,7 +11,7 @@ import (
 func TestListPartitions(t *testing.T) {
 	t.Run("discovers log files and skips invalid entries", func(t *testing.T) {
 		directory := t.TempDir()
-		for _, filename := range []string{"orders__2.log", "orders__0.log", "events__1.log", "bad.log", "bad__x.log", "bad__-1.log", "notes.txt", "__4.log"} {
+		for _, filename := range []string{"orders__2.log", "orders__0.log", "events__1.log", "events__1.kafka.log", "kafka-only__0.kafka.log", "bad.log", "bad__x.log", "bad__-1.log", "bad__x.kafka.log", "notes.txt", "__4.log"} {
 			if err := os.WriteFile(filepath.Join(directory, filename), nil, 0o600); err != nil {
 				t.Fatal(err)
 			}
@@ -23,7 +23,7 @@ func TestListPartitions(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ListPartitions() error = %v", err)
 		}
-		want := []PartitionInfo{{Topic: "events", Partition: 1}, {Topic: "orders", Partition: 0}, {Topic: "orders", Partition: 2}}
+		want := []PartitionInfo{{Topic: "events", Partition: 1}, {Topic: "kafka-only", Partition: 0}, {Topic: "orders", Partition: 0}, {Topic: "orders", Partition: 2}}
 		if !reflect.DeepEqual(got, want) {
 			t.Errorf("ListPartitions() = %+v, want %+v", got, want)
 		}
