@@ -152,3 +152,4 @@ being described as behavior from the Node reference.
 | 95 | `kafka.HandleKafkaRequest` | Route Metadata v0/v1 by schema version and reject unsupported versions. |
 | 96 | `main` | Advertise the implemented Metadata v1 schema to Kafka clients. |
 | 97 | `kafka.decodeListOffsetsRequestV1` | Parse timestamp offset queries for consumer partitions. |
+| 98 | `kafka.encodeListOffsetsResponseV1` | Encode per-partition timestamp and offset results. |
