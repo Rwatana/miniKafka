@@ -137,6 +137,55 @@ func TestHandleFetchRequestV4ReportsOffsetsBeyondHighWatermark(t *testing.T) {
 	}
 }
 
+func TestHandleFetchRequestV4HonorsAggregateMaxBytes(t *testing.T) {
+	for _, test := range []struct {
+		name       string
+		maxBytes   int32
+		first      []byte
+		second     []byte
+		wantLimits []int32
+		wantSecond []byte
+	}{
+		{name: "shares the remaining budget", maxBytes: 3, first: []byte{1, 2}, second: []byte{3, 4}, wantLimits: []int32{3, 1}, wantSecond: nil},
+		{name: "allows one first batch above the soft limit", maxBytes: 1, first: []byte{1, 2}, second: []byte{3}, wantLimits: []int32{1, 0}, wantSecond: nil},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			body := fetchRequestV4BodyForTest(fetchRequestV4{MaxBytes: test.maxBytes, Topics: []fetchTopicRequestV4{{Name: "orders", Partitions: []fetchPartitionRequestV4{
+				{Index: 0, PartitionMaxBytes: 10}, {Index: 1, PartitionMaxBytes: 10},
+			}}}})
+			request := fetchRequestFrameV4ForTest(body)
+			var limits []int32
+			response, err := HandleFetchRequestV4(request, 1024, func(_ string, partition int, _ int64, maxBytes int32) ([]byte, int64, error) {
+				limits = append(limits, maxBytes)
+				if partition == 0 {
+					return test.first, 2, nil
+				}
+				return test.second, 2, nil
+			})
+			if err != nil {
+				t.Fatalf("HandleFetchRequestV4() error = %v", err)
+			}
+			if !reflect.DeepEqual(limits, test.wantLimits) {
+				t.Errorf("reader byte limits = %v, want %v", limits, test.wantLimits)
+			}
+			wantBody, err := encodeFetchResponseV4(fetchResponseV4{Topics: []fetchTopicResponseV4{{Name: "orders", Partitions: []fetchPartitionResponseV4{
+				{Index: 0, HighWatermark: 2, LastStableOffset: 2, Records: test.first},
+				{Index: 1, HighWatermark: 2, LastStableOffset: 2, Records: test.wantSecond},
+			}}}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			want, err := encodeResponseFrame(append(encodeResponseHeaderV0(42), wantBody...), 1024)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !bytes.Equal(response, want) {
+				t.Errorf("Fetch response = %x, want %x", response, want)
+			}
+		})
+	}
+}
+
 func TestHandleFetchRequestV4RejectsInvalidRequests(t *testing.T) {
 	valid := fetchRequestFrameV4ForTest(fetchRequestV4BodyForTest(fetchRequestV4{}))
 	wrongAPI := append([]byte(nil), valid...)

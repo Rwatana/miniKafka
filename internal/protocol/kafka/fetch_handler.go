@@ -32,11 +32,20 @@ func HandleFetchRequestV4(requestFrame []byte, maxFrameBytes int32, readBatches 
 	}
 
 	response := fetchResponseV4{Topics: make([]fetchTopicResponseV4, 0, len(request.Topics))}
+	var returnedRecordBytes int64
 	for _, topic := range request.Topics {
 		topicResponse := fetchTopicResponseV4{Name: topic.Name, Partitions: make([]fetchPartitionResponseV4, 0, len(topic.Partitions))}
 		for _, partition := range topic.Partitions {
 			partitionResponse := fetchPartitionResponseV4{Index: partition.Index}
-			records, highWatermark, err := readBatches(topic.Name, int(partition.Index), partition.FetchOffset, partition.PartitionMaxBytes)
+			remainingBytes := int64(request.MaxBytes) - returnedRecordBytes
+			if remainingBytes < 0 {
+				remainingBytes = 0
+			}
+			readerMaxBytes := partition.PartitionMaxBytes
+			if int64(readerMaxBytes) > remainingBytes {
+				readerMaxBytes = int32(remainingBytes)
+			}
+			records, highWatermark, err := readBatches(topic.Name, int(partition.Index), partition.FetchOffset, readerMaxBytes)
 			if err != nil {
 				partitionResponse.ErrorCode = -1
 				if errors.Is(err, kafkaerr.ErrUnknownTopicOrPartition) {
@@ -51,7 +60,12 @@ func HandleFetchRequestV4(requestFrame []byte, maxFrameBytes int32, readBatches 
 			} else {
 				partitionResponse.HighWatermark = highWatermark
 				partitionResponse.LastStableOffset = highWatermark
-				partitionResponse.Records = records
+				if returnedRecordBytes > 0 && int64(len(records)) > remainingBytes {
+					partitionResponse.Records = nil
+				} else {
+					partitionResponse.Records = records
+					returnedRecordBytes += int64(len(records))
+				}
 			}
 			topicResponse.Partitions = append(topicResponse.Partitions, partitionResponse)
 		}
