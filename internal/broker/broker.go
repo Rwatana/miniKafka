@@ -19,7 +19,9 @@ var openBrokerPartitionLog = storage.OpenPartitionLog
 var openBrokerKafkaPartitionLog = storage.OpenKafkaPartitionLog
 var recoverBrokerKafkaPartitionLog = storage.RecoverKafkaPartitionLog
 var appendBrokerKafkaRecordBatch = storage.AppendKafkaRecordBatch
+var readBrokerKafkaRecordBatches = storage.ReadKafkaRecordBatches
 var closeBrokerKafkaPartitionLog = storage.CloseKafkaPartitionLog
+var statBrokerKafkaPartitionLog = os.Stat
 
 // PartitionInfo identifies one topic partition found in the broker data directory.
 type PartitionInfo struct {
@@ -169,6 +171,61 @@ func (broker *Broker) AppendKafkaRecordBatch(topic string, partition int, batch 
 		return 0, fmt.Errorf("append Kafka topic %q partition %d: %w", topic, partition, err)
 	}
 	return baseOffset, nil
+}
+
+// ReadKafkaRecordBatches reads whole batches at or after an offset and returns the partition high watermark.
+func (broker *Broker) ReadKafkaRecordBatches(topic string, partition int, fetchOffset int64, maxBytes int32) ([]byte, int64, error) {
+	if broker == nil {
+		return nil, 0, errors.New("read Kafka record batches: nil broker")
+	}
+	broker.mu.Lock()
+	defer broker.mu.Unlock()
+
+	if broker.DataDir == "" {
+		return nil, 0, errors.New("read Kafka record batches: empty data directory")
+	}
+	if topic == "" || strings.ContainsAny(topic, `/\\`) {
+		return nil, 0, fmt.Errorf("read Kafka record batches: invalid topic %q", topic)
+	}
+	if partition < 0 {
+		return nil, 0, fmt.Errorf("read Kafka record batches: negative partition %d", partition)
+	}
+	if fetchOffset < 0 {
+		return nil, 0, fmt.Errorf("read Kafka record batches: negative fetch offset %d", fetchOffset)
+	}
+	if maxBytes < 0 {
+		return nil, 0, fmt.Errorf("read Kafka record batches: negative maximum bytes %d", maxBytes)
+	}
+
+	identity := partitionKey{topic: topic, partition: partition}
+	log := broker.kafkaLogs[identity]
+	if log == nil {
+		path := filepath.Join(broker.DataDir, fmt.Sprintf("%s__%d.kafka.log", topic, partition))
+		if _, err := statBrokerKafkaPartitionLog(path); errors.Is(err, os.ErrNotExist) {
+			return []byte{}, 0, nil
+		} else if err != nil {
+			return nil, 0, fmt.Errorf("find Kafka topic %q partition %d: %w", topic, partition, err)
+		}
+		openedLog, err := openBrokerKafkaPartitionLog(path)
+		if err != nil {
+			return nil, 0, fmt.Errorf("open Kafka topic %q partition %d: %w", topic, partition, err)
+		}
+		if err := recoverBrokerKafkaPartitionLog(openedLog); err != nil {
+			_ = closeBrokerKafkaPartitionLog(openedLog)
+			return nil, 0, fmt.Errorf("recover Kafka topic %q partition %d: %w", topic, partition, err)
+		}
+		if broker.kafkaLogs == nil {
+			broker.kafkaLogs = make(map[partitionKey]*storage.KafkaPartitionLog)
+		}
+		log = openedLog
+		broker.kafkaLogs[identity] = log
+	}
+
+	records, highWatermark, err := readBrokerKafkaRecordBatches(log, fetchOffset, maxBytes)
+	if err != nil {
+		return nil, 0, fmt.Errorf("read Kafka topic %q partition %d: %w", topic, partition, err)
+	}
+	return records, highWatermark, nil
 }
 
 // Consume reads a bounded range of records from a topic partition.
