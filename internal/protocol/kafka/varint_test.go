@@ -125,3 +125,38 @@ func TestDecodeUnsignedVarlongRejectsInvalidInput(t *testing.T) {
 		})
 	}
 }
+
+func TestDecodeSignedVarlong(t *testing.T) {
+	for _, value := range []int64{-1 << 63, -65536, -64, -1, 0, 1, 63, 64, 65536, 1<<63 - 1} {
+		t.Run(fmt.Sprintf("%d", value), func(t *testing.T) {
+			encoded := signedVarlongForTest(value)
+			got, length, err := decodeSignedVarlong(append(encoded, 0xff))
+			if err != nil {
+				t.Fatalf("decodeSignedVarlong() error = %v", err)
+			}
+			if got != value || length != len(encoded) {
+				t.Errorf("decodeSignedVarlong() = (%d, %d), want (%d, %d)", got, length, value, len(encoded))
+			}
+		})
+	}
+}
+
+func TestDecodeSignedVarlongRejectsInvalidEncoding(t *testing.T) {
+	for name, encoded := range map[string][]byte{
+		"truncated": {0x80},
+		"overflow":  {0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x02},
+	} {
+		t.Run(name, func(t *testing.T) {
+			if _, _, err := decodeSignedVarlong(encoded); err == nil {
+				t.Error("decodeSignedVarlong() error = nil, want error")
+			}
+		})
+	}
+}
+
+func signedVarlongForTest(value int64) []byte {
+	zigzag := uint64(value<<1) ^ uint64(value>>63)
+	var encoded [binary.MaxVarintLen64]byte
+	length := binary.PutUvarint(encoded[:], zigzag)
+	return append([]byte(nil), encoded[:length]...)
+}
