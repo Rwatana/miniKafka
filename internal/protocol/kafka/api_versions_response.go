@@ -25,3 +25,10 @@ func encodeAPIVersionsResponseV3(errorCode int16, apiVersions []apiVersionRange)
 	encoded = append(encoded, 0, 0, 0, 0, 0)
 	return encoded
 }
+
+// encodeAPIVersionsResponseFrameV3 assembles a complete bounded v3 response frame.
+func encodeAPIVersionsResponseFrameV3(correlationID int32, errorCode int16, apiVersions []apiVersionRange, maxFrameBytes int32) ([]byte, error) {
+	response := encodeResponseHeaderV0(correlationID)
+	response = append(response, encodeAPIVersionsResponseV3(errorCode, apiVersions)...)
+	return encodeResponseFrame(response, maxFrameBytes)
+}
