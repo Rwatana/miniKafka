@@ -16,12 +16,14 @@ legacy STRING with an INT16 byte length, and the request uses header version 1.
 
 `decodeMetadataRequestV0` reads the INT32 array count, validates that the
 remaining bytes can contain at least each STRING length, decodes UTF-8 names,
-and rejects invalid lengths or bytes after the array.
+and rejects invalid lengths or bytes after the array. A null array (`-1`) is
+normalized to an empty topic list, which the Metadata handler interprets as a
+request for all available topics.
 
 ## Tests
 
-Fixtures cover an empty array, multiple ASCII/UTF-8 names, malformed counts,
-negative lengths, truncated strings, invalid UTF-8, and trailing bytes.
+Fixtures cover empty and null arrays, multiple ASCII/UTF-8 names, malformed
+counts, negative lengths, truncated strings, invalid UTF-8, and trailing bytes.
 
 ## Deliberate differences
 

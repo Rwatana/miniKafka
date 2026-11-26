@@ -146,3 +146,4 @@ being described as behavior from the Node reference.
 | 89 | `kafka.HandleFetchRequestV4` | Wait for min_bytes or max_wait_ms before returning Fetch data. |
 | 90 | `kafka.HandleAPIVersionsRequestV0` | Answer the fixed-schema ApiVersions v0 bootstrap request used by Kafka clients. |
 | 91 | `kafka.HandleKafkaRequest` | Select ApiVersions v0 or v3 from the request header without schema confusion. |
+| 92 | `kafka.decodeMetadataRequestV0` | Treat a null topic array as a request for all Metadata topics. |

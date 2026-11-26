@@ -47,6 +47,9 @@ func decodeMetadataRequestV0(body []byte) ([]string, error) {
 		return nil, fmt.Errorf("decode Metadata v0 request: missing topic count")
 	}
 	count := int32(binary.BigEndian.Uint32(body[:4]))
+	if count == -1 {
+		return []string{}, nil
+	}
 	if count < 0 {
 		return nil, fmt.Errorf("decode Metadata v0 request: negative topic count %d", count)
 	}
