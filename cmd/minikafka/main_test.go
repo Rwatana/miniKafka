@@ -119,7 +119,7 @@ func TestMain(t *testing.T) {
 			if maxFrameBytes != 100*1024*1024 {
 				t.Errorf("Kafka max frame size = %d, want 100 MiB", maxFrameBytes)
 			}
-			wantSupported := []kafkaprotocol.APIVersionRange{{APIKey: 0, MinVersion: 3, MaxVersion: 3}, {APIKey: 1, MinVersion: 4, MaxVersion: 4}, {APIKey: 3, MinVersion: 0, MaxVersion: 0}, {APIKey: 18, MinVersion: 0, MaxVersion: 3}}
+			wantSupported := []kafkaprotocol.APIVersionRange{{APIKey: 0, MinVersion: 3, MaxVersion: 3}, {APIKey: 1, MinVersion: 4, MaxVersion: 4}, {APIKey: 3, MinVersion: 0, MaxVersion: 1}, {APIKey: 18, MinVersion: 0, MaxVersion: 3}}
 			if !reflect.DeepEqual(supported, wantSupported) {
 				t.Errorf("supported Kafka APIs = %+v, want %+v", supported, wantSupported)
 			}

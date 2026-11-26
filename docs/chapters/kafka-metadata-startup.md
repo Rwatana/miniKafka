@@ -9,7 +9,7 @@ The advertised hostname must be reachable from the client network.
 ## Go design
 
 `main` creates the file-backed broker before starting the Kafka listener. It
-advertises Metadata v0 alongside ApiVersions v0-v3 and supplies a callback that
+advertises Metadata v0-v1 alongside ApiVersions v0-v3 and supplies a callback that
 discovers partition log files for every Metadata request. The callback maps
 the single broker's partitions to leader, replica, and ISR fields. Set
 `KAFKA_ADVERTISED_HOST` when clients reach the broker through a hostname other
