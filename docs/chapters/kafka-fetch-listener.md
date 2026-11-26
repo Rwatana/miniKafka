@@ -9,14 +9,15 @@ ordered request stream, while independent clients are served concurrently.
 
 `ServeKafkaWithFetchReader` accepts a connection, starts the reader-aware
 connection loop in a goroutine, and closes the socket when that loop exits. It
-keeps the older listener function available for clients that only use the
-previous API set.
+passes both the Fetch batch reader and the optional ListOffsets lookup callback
+to each connection. It keeps the older listener function available for clients
+that only use the previous API set.
 
 ## Tests
 
-An actual local TCP client issues Fetch v4 and observes a reader-backed
-response. Tests also cover accept errors and clean shutdown after listener
-closure.
+An actual local TCP client issues Fetch v4 and ListOffsets v1 and observes
+responses from both broker callbacks. Tests also cover accept errors and clean
+shutdown after listener closure.
 
 ## Deliberate limits
 

@@ -157,3 +157,4 @@ being described as behavior from the Node reference.
 | 100 | `broker.Broker.LookupKafkaOffset` | Resolve earliest/latest and timestamp queries from Kafka record batches. |
 | 101 | `kafka.HandleKafkaRequestWithFetchReader` | Route ListOffsets v1 frames through the broker-aware dispatcher. |
 | 102 | `kafka.ServeKafkaConnectionWithFetchReader` | Pass the offset lookup callback through persistent Kafka connections. |
+| 103 | `kafka.ServeKafkaWithFetchReader` | Pass the offset lookup callback through the TCP accept loop. |

@@ -181,6 +181,7 @@ func TestServeKafkaWithFetchReaderAcceptsFetchClient(t *testing.T) {
 	}
 	done := make(chan error, 1)
 	readerCalls := make(chan string, 1)
+	offsetCalls := make(chan string, 1)
 	go func() {
 		done <- ServeKafkaWithFetchReader(listener, 1024, nil, nil, nil, func(topic string, partition int, offset int64, maxBytes int32) ([]byte, int64, error) {
 			readerCalls <- topic
@@ -188,6 +189,12 @@ func TestServeKafkaWithFetchReaderAcceptsFetchClient(t *testing.T) {
 				t.Errorf("Fetch reader args = (%d, %d, %d)", partition, offset, maxBytes)
 			}
 			return []byte{0xaa}, 5, nil
+		}, func(topic string, partition int, timestamp int64) (int64, int64, error) {
+			offsetCalls <- topic
+			if partition != 1 || timestamp != -2 {
+				t.Errorf("ListOffsets lookup args = (%d, %d)", partition, timestamp)
+			}
+			return 0, -1, nil
 		})
 	}()
 	client, err := net.Dial("tcp", listener.Addr().String())
@@ -207,6 +214,24 @@ func TestServeKafkaWithFetchReaderAcceptsFetchClient(t *testing.T) {
 	}
 	if topic := <-readerCalls; topic != "orders" {
 		t.Errorf("reader topic = %q, want orders", topic)
+	}
+	listOffsetsRequest := listOffsetsRequestFrameForTest(2, 1, 44, []byte{
+		0xff, 0xff, 0xff, 0xff, 0, 0, 0, 1,
+		0, 6, 'o', 'r', 'd', 'e', 'r', 's', 0, 0, 0, 1,
+		0, 0, 0, 1, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xfe,
+	})
+	if _, err := client.Write(appendFrame(nil, listOffsetsRequest)); err != nil {
+		t.Fatalf("write ListOffsets request: %v", err)
+	}
+	listOffsetsResponse, err := ReadRequestFrame(client, 1024)
+	if err != nil {
+		t.Fatalf("read ListOffsets response: %v", err)
+	}
+	if len(listOffsetsResponse) < 4 || int32(listOffsetsResponse[3]) != 44 {
+		t.Errorf("ListOffsets response correlation ID = %x, want 44", listOffsetsResponse[:min(4, len(listOffsetsResponse))])
+	}
+	if topic := <-offsetCalls; topic != "orders" {
+		t.Errorf("offset lookup topic = %q, want orders", topic)
 	}
 	_ = client.Close()
 	_ = listener.Close()
