@@ -133,3 +133,4 @@ being described as behavior from the Node reference.
 | 76 | `broker.Broker.Close` | Close both JSON and Kafka binary partition logs during broker shutdown. |
 | 77 | `broker.Broker.ReadKafkaRecordBatches` | Read and recover Kafka batches through broker-owned logs without creating missing partitions. |
 | 78 | `kafka.HandleFetchRequestV4` | Read requested partition batches and return a correlation-matched Fetch response. |
+| 79 | `kafka.HandleKafkaRequestWithFetchReader` | Route Fetch frames through the reader-aware handler while preserving existing dispatch. |

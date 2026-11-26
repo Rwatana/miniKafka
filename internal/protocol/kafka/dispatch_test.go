@@ -78,3 +78,63 @@ func TestHandleKafkaRequestRejectsInvalidAndUnsupportedFrames(t *testing.T) {
 		})
 	}
 }
+
+func TestHandleKafkaRequestWithFetchReaderRoutesFetchAndPreservesExistingAPIs(t *testing.T) {
+	fetchFrame := fetchRequestFrameV4ForTest(fetchRequestV4BodyForTest(fetchRequestV4{}))
+	fetchResponse, err := HandleKafkaRequestWithFetchReader(fetchFrame, 1024, nil, nil, nil, nil, func(string, int, int64, int32) ([]byte, int64, error) {
+		t.Error("reader called for empty Fetch request")
+		return nil, 0, nil
+	})
+	if err != nil {
+		t.Fatalf("HandleKafkaRequestWithFetchReader(Fetch) error = %v", err)
+	}
+	wantFetch, err := HandleFetchRequestV4(fetchFrame, 1024, func(string, int, int64, int32) ([]byte, int64, error) { return nil, 0, nil })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(fetchResponse, wantFetch) {
+		t.Errorf("Fetch response = %x, want %x", fetchResponse, wantFetch)
+	}
+
+	apiVersions := []byte{0, 18, 0, 3, 0, 0, 0, 8, 1, 0, 2, 'n', 2, '1', 0}
+	supported := []APIVersionRange{{APIKey: 18, MinVersion: 0, MaxVersion: 3}}
+	delegated, err := HandleKafkaRequestWithFetchReader(apiVersions, 1024, supported, nil, nil, nil, nil)
+	if err != nil {
+		t.Fatalf("HandleKafkaRequestWithFetchReader(ApiVersions) error = %v", err)
+	}
+	wantDelegated, err := HandleKafkaRequest(apiVersions, 1024, supported, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(delegated, wantDelegated) {
+		t.Errorf("delegated response = %x, want %x", delegated, wantDelegated)
+	}
+	produceBatch := recordBatchV2ForTest(1, 0, recordV2ForTest(kafkaRecordV2{Headers: []recordHeaderV2{}}))
+	produce := produceRequestFrameV3ForTest(nil, 1, []produceTopicData{{Name: "orders", Partitions: []producePartitionData{{Index: 0, Records: produceBatch}}}})
+	appended := false
+	if _, err := HandleKafkaRequestWithFetchReader(produce, 1024, nil, nil, nil, func(string, int, []byte) (int64, error) {
+		appended = true
+		return 0, nil
+	}, nil); err != nil {
+		t.Fatalf("HandleKafkaRequestWithFetchReader(Produce) error = %v", err)
+	}
+	if !appended {
+		t.Error("Produce appender was not called")
+	}
+
+	if _, err := HandleKafkaRequestWithFetchReader([]byte{0}, 1024, nil, nil, nil, nil, nil); err == nil {
+		t.Error("short request error = nil, want dispatch error")
+	}
+	if _, err := HandleKafkaRequestWithFetchReader(fetchRequestFrameVersionForTest(fetchFrame, 3), 1024, nil, nil, nil, nil, func(string, int, int64, int32) ([]byte, int64, error) { return nil, 0, nil }); err == nil {
+		t.Error("unsupported Fetch version error = nil, want handler error")
+	}
+	if _, err := HandleKafkaRequestWithFetchReader(fetchFrame, 1024, nil, nil, nil, nil, nil); err == nil {
+		t.Error("missing Fetch reader error = nil, want handler error")
+	}
+}
+
+func fetchRequestFrameVersionForTest(frame []byte, version byte) []byte {
+	versioned := append([]byte(nil), frame...)
+	versioned[3] = version
+	return versioned
+}
