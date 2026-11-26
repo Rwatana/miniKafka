@@ -143,3 +143,4 @@ being described as behavior from the Node reference.
 | 86 | `broker.Broker.ListPartitions` | Include native Kafka binary partition logs in Metadata discovery without duplicates. |
 | 87 | `main` | Close and join the Kafka serving goroutine as the application shuts down. |
 | 88 | `kafka.HandleFetchRequestV4` | Apply Fetch v4's aggregate max_bytes budget across requested partitions. |
+| 89 | `kafka.HandleFetchRequestV4` | Wait for min_bytes or max_wait_ms before returning Fetch data. |

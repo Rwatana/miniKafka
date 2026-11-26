@@ -27,6 +27,11 @@ each partition's `partition_max_bytes`. Kafka's soft-limit behavior is kept:
 the first non-empty whole batch can exceed the aggregate byte budget, and
 later partitions return metadata without adding more record bytes.
 
+When fewer bytes than `min_bytes` are available, the handler polls the broker
+reader at a 10 ms interval and repeats until the threshold is reached or
+`max_wait_ms` expires. The final read is returned when the deadline expires.
+Append notifications can replace this teaching implementation's polling later.
+
 This implementation reports the high watermark as the last stable offset and
 uses no aborted-transaction entries because the current broker has no
 transaction protocol.

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/Rwatana/miniKafka/internal/kafkaerr"
 )
@@ -183,6 +184,57 @@ func TestHandleFetchRequestV4HonorsAggregateMaxBytes(t *testing.T) {
 				t.Errorf("Fetch response = %x, want %x", response, want)
 			}
 		})
+	}
+}
+
+func TestHandleFetchRequestV4WaitsForMinBytes(t *testing.T) {
+	body := fetchRequestV4BodyForTest(fetchRequestV4{MinBytes: 4, MaxBytes: 10, MaxWaitMs: 100, Topics: []fetchTopicRequestV4{{Name: "orders", Partitions: []fetchPartitionRequestV4{{Index: 0, PartitionMaxBytes: 10}}}}})
+	calls := 0
+	response, err := HandleFetchRequestV4(fetchRequestFrameV4ForTest(body), 1024, func(string, int, int64, int32) ([]byte, int64, error) {
+		calls++
+		if calls == 1 {
+			return []byte{1, 2}, 2, nil
+		}
+		return []byte{1, 2, 3, 4}, 4, nil
+	})
+	if err != nil {
+		t.Fatalf("HandleFetchRequestV4() error = %v", err)
+	}
+	if calls != 2 {
+		t.Errorf("reader calls = %d, want 2 after min_bytes is reached", calls)
+	}
+	wantBody, err := encodeFetchResponseV4(fetchResponseV4{Topics: []fetchTopicResponseV4{{Name: "orders", Partitions: []fetchPartitionResponseV4{{Index: 0, HighWatermark: 4, LastStableOffset: 4, Records: []byte{1, 2, 3, 4}}}}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want, err := encodeResponseFrame(append(encodeResponseHeaderV0(42), wantBody...), 1024)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(response, want) {
+		t.Errorf("Fetch response = %x, want %x", response, want)
+	}
+}
+
+func TestHandleFetchRequestV4ReturnsAvailableDataAtMaxWait(t *testing.T) {
+	body := fetchRequestV4BodyForTest(fetchRequestV4{MinBytes: 2, MaxBytes: 10, MaxWaitMs: 15, Topics: []fetchTopicRequestV4{{Name: "orders", Partitions: []fetchPartitionRequestV4{{Index: 0, PartitionMaxBytes: 10}}}}})
+	calls := 0
+	started := time.Now()
+	response, err := HandleFetchRequestV4(fetchRequestFrameV4ForTest(body), 1024, func(string, int, int64, int32) ([]byte, int64, error) {
+		calls++
+		return []byte{1}, 1, nil
+	})
+	if err != nil {
+		t.Fatalf("HandleFetchRequestV4() error = %v", err)
+	}
+	if calls < 2 {
+		t.Errorf("reader calls = %d, want repeated reads until timeout", calls)
+	}
+	if elapsed := time.Since(started); elapsed < 10*time.Millisecond || elapsed > 250*time.Millisecond {
+		t.Errorf("Fetch long poll elapsed %s, want near 15ms deadline", elapsed)
+	}
+	if len(response) == 0 {
+		t.Error("Fetch response is empty, want available records at timeout")
 	}
 }
 
