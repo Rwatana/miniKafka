@@ -126,3 +126,4 @@ being described as behavior from the Node reference.
 | 69 | `kafka.HandleKafkaRequest` | Route Produce v3 frames to the handler and supply an optional batch appender. |
 | 70 | `kafka.ServeKafkaConnection` | Pass the Produce appender through persistent mixed-API connections. |
 | 71 | `kafka.ServeKafka` | Forward the Produce appender to each accepted Kafka client connection. |
+| 72 | `main` | Advertise Produce v3 and pass the broker-backed appender into the listener. |
