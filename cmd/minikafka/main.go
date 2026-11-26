@@ -69,7 +69,9 @@ func main() {
 		brokers := []kafkaprotocol.MetadataBroker{{NodeID: 0, Host: advertisedHost, Port: advertisedPort}}
 		return brokers, metadataTopicsFromPartitions(partitions, 0), nil
 	}
+	kafkaDone := make(chan struct{})
 	go func() {
+		defer close(kafkaDone)
 		supportedAPIs := []kafkaprotocol.APIVersionRange{
 			{APIKey: 0, MinVersion: 3, MaxVersion: 3},
 			{APIKey: 1, MinVersion: 4, MaxVersion: 4},
@@ -107,4 +109,6 @@ func main() {
 		_ = database.Close()
 		exitProcess(1)
 	}
+	_ = kafkaListener.Close()
+	<-kafkaDone
 }

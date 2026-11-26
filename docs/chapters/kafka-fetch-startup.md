@@ -10,7 +10,8 @@ actually handle, and the handler must reach the broker's partition storage.
 
 `main` advertises Fetch v4 and starts `ServeKafkaWithFetchReader`. It supplies
 the broker's Kafka batch append and read methods, so Produce and Fetch operate
-on the same durable partition logs.
+on the same durable partition logs. When the HTTP server exits, startup closes
+the Kafka listener and waits for its accept loop to stop before returning.
 
 ## Tests
 
