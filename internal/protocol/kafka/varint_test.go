@@ -2,6 +2,8 @@ package kafka
 
 import (
 	"bytes"
+	"encoding/binary"
+	"fmt"
 	"testing"
 )
 
@@ -48,4 +50,39 @@ func TestDecodeUnsignedVarintRejectsInvalidInput(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestDecodeSignedVarint(t *testing.T) {
+	for _, value := range []int32{-1 << 31, -65536, -64, -1, 0, 1, 63, 64, 65536, 1<<31 - 1} {
+		t.Run(fmt.Sprintf("%d", value), func(t *testing.T) {
+			encoded := signedVarintForTest(value)
+			got, length, err := decodeSignedVarint(append(encoded, 0xff))
+			if err != nil {
+				t.Fatalf("decodeSignedVarint() error = %v", err)
+			}
+			if got != value || length != len(encoded) {
+				t.Errorf("decodeSignedVarint() = (%d, %d), want (%d, %d)", got, length, value, len(encoded))
+			}
+		})
+	}
+}
+
+func TestDecodeSignedVarintRejectsInvalidEncoding(t *testing.T) {
+	for name, encoded := range map[string][]byte{
+		"truncated": {0x80},
+		"overflow":  {0xff, 0xff, 0xff, 0xff, 0x10},
+	} {
+		t.Run(name, func(t *testing.T) {
+			if _, _, err := decodeSignedVarint(encoded); err == nil {
+				t.Error("decodeSignedVarint() error = nil, want error")
+			}
+		})
+	}
+}
+
+func signedVarintForTest(value int32) []byte {
+	zigzag := uint32(value<<1) ^ uint32(value>>31)
+	var encoded [binary.MaxVarintLen32]byte
+	length := binary.PutUvarint(encoded[:], uint64(zigzag))
+	return append([]byte(nil), encoded[:length]...)
 }

@@ -20,3 +20,13 @@ func decodeUnsignedVarint(encoded []byte) (uint32, int, error) {
 	}
 	return 0, 0, fmt.Errorf("decode Kafka unsigned varint: exceeds five bytes")
 }
+
+// decodeSignedVarint decodes a Kafka signed zig-zag VARINT and its encoded length.
+func decodeSignedVarint(encoded []byte) (int32, int, error) {
+	unsigned, length, err := decodeUnsignedVarint(encoded)
+	if err != nil {
+		return 0, 0, fmt.Errorf("decode Kafka signed varint: %w", err)
+	}
+	value := int32(unsigned>>1) ^ -int32(unsigned&1)
+	return value, length, nil
+}
