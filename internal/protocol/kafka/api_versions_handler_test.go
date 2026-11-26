@@ -44,3 +44,47 @@ func TestHandleAPIVersionsRequestV3RejectsInvalidRequests(t *testing.T) {
 		})
 	}
 }
+
+func TestHandleAPIVersionsRequestV0(t *testing.T) {
+	request := []byte{0, 18, 0, 0, 1, 2, 3, 4, 0xff, 0xff}
+	supported := []APIVersionRange{{APIKey: 0, MinVersion: 3, MaxVersion: 3}, {APIKey: 18, MinVersion: 0, MaxVersion: 3}}
+	want := []byte{
+		0, 0, 0, 22, // frame size
+		1, 2, 3, 4, // correlation ID
+		0, 0, // error code
+		0, 0, 0, 2, // array length
+		0, 0, 0, 3, 0, 3,
+		0, 18, 0, 0, 0, 3,
+	}
+	got, err := HandleAPIVersionsRequestV0(request, 22, supported)
+	if err != nil {
+		t.Fatalf("HandleAPIVersionsRequestV0() error = %v", err)
+	}
+	if !bytes.Equal(got, want) {
+		t.Errorf("response frame = %x, want %x", got, want)
+	}
+
+	tooSmall := []byte{0, 18, 0, 0, 1, 2, 3, 4, 0, 0}
+	withBody := append(append([]byte(nil), tooSmall...), 1)
+	wrongVersion := append([]byte(nil), tooSmall...)
+	wrongVersion[3] = 1
+	wrongKey := append([]byte(nil), tooSmall...)
+	wrongKey[1] = 17
+	for _, test := range []struct {
+		name  string
+		frame []byte
+		max   int32
+	}{
+		{name: "malformed header", frame: nil, max: 64},
+		{name: "wrong API key", frame: wrongKey, max: 64},
+		{name: "wrong API version", frame: wrongVersion, max: 64},
+		{name: "unexpected request body", frame: withBody, max: 64},
+		{name: "response exceeds bound", frame: tooSmall, max: 21},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			if _, err := HandleAPIVersionsRequestV0(test.frame, test.max, supported); err == nil {
+				t.Error("HandleAPIVersionsRequestV0() error = nil, want error")
+			}
+		})
+	}
+}
