@@ -161,3 +161,4 @@ being described as behavior from the Node reference.
 | 104 | `main` | Advertise ListOffsets v1 and connect it to the broker's timestamp index. |
 | 105 | `kafka.decodeFetchRequestV2` | Parse the older Fetch request schema used by Kafka client readers. |
 | 106 | `kafka.encodeFetchResponseV2` | Encode the v2 Fetch response and its nullable record sets. |
+| 107 | `kafka.HandleFetchRequestV2` | Read batches and return a version 2 Fetch response. |
