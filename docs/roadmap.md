@@ -165,3 +165,4 @@ being described as behavior from the Node reference.
 | 108 | `kafka.HandleKafkaRequestWithFetchReader` | Route Fetch v2 frames to their versioned handler. |
 | 109 | `kafka.TestKafkaGoClientProducesAndFetchesThroughKafka` | Validate the live Produce, Metadata, ListOffsets, and Fetch path with kafka-go. |
 | 110 | `kafka.decodeFetchRequestV3` | Parse Fetch v3's aggregate byte budget and partition requests. |
+| 111 | `kafka.HandleFetchRequestV3` | Enforce aggregate limits and return a Fetch v3 response. |
