@@ -27,3 +27,21 @@ func decodeAPIVersionsRequestV3(body []byte) (apiVersionsRequest, error) {
 	}
 	return apiVersionsRequest{clientSoftwareName: name, clientSoftwareVersion: version}, nil
 }
+
+// HandleAPIVersionsRequestV3 validates and answers one Kafka ApiVersions v3 request frame.
+func HandleAPIVersionsRequestV3(requestFrame []byte, maxFrameBytes int32, supportedAPIs []APIVersionRange) ([]byte, error) {
+	header, body, err := DecodeRequestHeaderV2(requestFrame)
+	if err != nil {
+		return nil, fmt.Errorf("handle ApiVersions v3 request header: %w", err)
+	}
+	if header.APIKey != 18 {
+		return nil, fmt.Errorf("handle ApiVersions v3 request: API key %d, want 18", header.APIKey)
+	}
+	if header.APIVersion != 3 {
+		return nil, fmt.Errorf("handle ApiVersions v3 request: API version %d, want 3", header.APIVersion)
+	}
+	if _, err := decodeAPIVersionsRequestV3(body); err != nil {
+		return nil, fmt.Errorf("handle ApiVersions v3 request body: %w", err)
+	}
+	return encodeAPIVersionsResponseFrameV3(header.CorrelationID, 0, supportedAPIs, maxFrameBytes)
+}
