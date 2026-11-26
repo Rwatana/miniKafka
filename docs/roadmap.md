@@ -170,3 +170,4 @@ being described as behavior from the Node reference.
 | 113 | `main` | Advertise Fetch v2-v4 after all three handlers are wired. |
 | 114 | `kafka.HandleFindCoordinatorRequestV1` | Return the broker endpoint for a consumer-group coordinator query. |
 | 115 | `kafka.HandleKafkaRequestWithFetchReader` | Route FindCoordinator v1 using broker metadata. |
+| 116 | `kafka.ServeKafkaConnectionWithFetchReader` | Load broker metadata for FindCoordinator requests on persistent connections. |

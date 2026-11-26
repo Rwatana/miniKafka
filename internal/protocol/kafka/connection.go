@@ -85,10 +85,13 @@ func ServeKafkaConnectionWithFetchReader(conn net.Conn, maxFrameBytes int32, sup
 		}
 		var brokers []MetadataBroker
 		var topics []MetadataTopic
-		if len(requestFrame) >= 2 && int16(binary.BigEndian.Uint16(requestFrame[:2])) == 3 && metadataProvider != nil {
-			brokers, topics, err = metadataProvider()
-			if err != nil {
-				return fmt.Errorf("load Kafka metadata: %w", err)
+		if len(requestFrame) >= 2 && metadataProvider != nil {
+			apiKey := int16(binary.BigEndian.Uint16(requestFrame[:2]))
+			if apiKey == 3 || apiKey == 10 {
+				brokers, topics, err = metadataProvider()
+				if err != nil {
+					return fmt.Errorf("load Kafka metadata: %w", err)
+				}
 			}
 		}
 		response, err := HandleKafkaRequestWithFetchReader(requestFrame, maxFrameBytes, supportedAPIs, brokers, topics, appendBatch, readBatches, offsetLookups...)
