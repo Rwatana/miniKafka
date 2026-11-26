@@ -90,3 +90,4 @@ being described as behavior from the Node reference.
 | 33 | `kafka.skipTaggedFields` | Validate and skip Kafka flexible-protocol tag buffers while preserving following fields. |
 | 34 | `kafka.DecodeRequestHeaderV2` | Decode flexible request headers using compact client IDs and tagged fields. |
 | 35 | `kafka.encodeResponseHeaderV0` | Encode the four-byte correlation ID in a non-flexible Kafka response header. |
+| 36 | `kafka.encodeResponseFrame` | Prefix a response body with its bounded four-byte Kafka message size. |

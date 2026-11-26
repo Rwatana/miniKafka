@@ -72,6 +72,43 @@ func TestReadRequestFrame(t *testing.T) {
 	})
 }
 
+func TestEncodeResponseFrame(t *testing.T) {
+	t.Run("prefixes body with big-endian size", func(t *testing.T) {
+		got, err := encodeResponseFrame([]byte{0xaa, 0xbb, 0xcc}, 8)
+		if err != nil {
+			t.Fatalf("encodeResponseFrame() error = %v", err)
+		}
+		want := []byte{0, 0, 0, 3, 0xaa, 0xbb, 0xcc}
+		if !bytes.Equal(got, want) {
+			t.Errorf("frame = %x, want %x", got, want)
+		}
+	})
+
+	t.Run("accepts an empty body", func(t *testing.T) {
+		got, err := encodeResponseFrame(nil, 8)
+		if err != nil {
+			t.Fatalf("encodeResponseFrame() error = %v", err)
+		}
+		if !bytes.Equal(got, []byte{0, 0, 0, 0}) {
+			t.Errorf("frame = %x, want zero-length size prefix", got)
+		}
+	})
+
+	t.Run("rejects invalid bounds", func(t *testing.T) {
+		for _, max := range []int32{0, -1} {
+			if _, err := encodeResponseFrame(nil, max); err == nil {
+				t.Errorf("encodeResponseFrame(max=%d) error = nil, want error", max)
+			}
+		}
+	})
+
+	t.Run("rejects body above configured bound", func(t *testing.T) {
+		if _, err := encodeResponseFrame([]byte{1, 2, 3}, 2); err == nil {
+			t.Error("encodeResponseFrame() error = nil, want oversized-body error")
+		}
+	})
+}
+
 func appendFrame(stream, body []byte) []byte {
 	stream = append(stream, prefix(int32(len(body)))...)
 	return append(stream, body...)

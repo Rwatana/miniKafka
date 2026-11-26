@@ -121,3 +121,18 @@ func encodeResponseHeaderV0(correlationID int32) []byte {
 	binary.BigEndian.PutUint32(encoded[:], uint32(correlationID))
 	return encoded[:]
 }
+
+// encodeResponseFrame prefixes a Kafka response body with its bounded INT32 size.
+func encodeResponseFrame(body []byte, maxFrameBytes int32) ([]byte, error) {
+	if maxFrameBytes <= 0 {
+		return nil, fmt.Errorf("encode Kafka response frame: invalid maximum size %d", maxFrameBytes)
+	}
+	if len(body) > int(maxFrameBytes) {
+		return nil, fmt.Errorf("encode Kafka response frame: size %d exceeds maximum %d", len(body), maxFrameBytes)
+	}
+
+	frame := make([]byte, 4+len(body))
+	binary.BigEndian.PutUint32(frame[:4], uint32(int32(len(body))))
+	copy(frame[4:], body)
+	return frame, nil
+}
