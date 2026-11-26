@@ -22,6 +22,11 @@ An offset above the returned high watermark produces Kafka's
 `OFFSET_OUT_OF_RANGE` error and omits records. An offset equal to the high
 watermark remains a valid empty read.
 
+Partition reads share the request's aggregate `max_bytes` budget, bounded by
+each partition's `partition_max_bytes`. Kafka's soft-limit behavior is kept:
+the first non-empty whole batch can exceed the aggregate byte budget, and
+later partitions return metadata without adding more record bytes.
+
 This implementation reports the high watermark as the last stable offset and
 uses no aborted-transaction entries because the current broker has no
 transaction protocol.

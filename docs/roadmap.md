@@ -142,3 +142,4 @@ being described as behavior from the Node reference.
 | 85 | `kafka.HandleFetchRequestV4` | Map the broker's typed missing-partition error to Kafka UNKNOWN_TOPIC_OR_PARTITION. |
 | 86 | `broker.Broker.ListPartitions` | Include native Kafka binary partition logs in Metadata discovery without duplicates. |
 | 87 | `main` | Close and join the Kafka serving goroutine as the application shuts down. |
+| 88 | `kafka.HandleFetchRequestV4` | Apply Fetch v4's aggregate max_bytes budget across requested partitions. |

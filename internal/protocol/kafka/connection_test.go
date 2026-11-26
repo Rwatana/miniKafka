@@ -298,7 +298,8 @@ func TestServeKafkaConnectionWithFetchReaderProcessesOrderedRequests(t *testing.
 	server, client := net.Pipe()
 	done := make(chan error, 1)
 	request := fetchRequestFrameV4ForTest(fetchRequestV4BodyForTest(fetchRequestV4{
-		Topics: []fetchTopicRequestV4{{Name: "orders", Partitions: []fetchPartitionRequestV4{{Index: 2, FetchOffset: 11, PartitionMaxBytes: 64}}}},
+		MaxBytes: 1024,
+		Topics:   []fetchTopicRequestV4{{Name: "orders", Partitions: []fetchPartitionRequestV4{{Index: 2, FetchOffset: 11, PartitionMaxBytes: 64}}}},
 	}))
 	var supported = []APIVersionRange{{APIKey: 18, MinVersion: 0, MaxVersion: 3}}
 	go func() {

@@ -194,7 +194,7 @@ func TestServeKafkaWithFetchReaderAcceptsFetchClient(t *testing.T) {
 	if err != nil {
 		t.Fatalf("net.Dial() error = %v", err)
 	}
-	request := fetchRequestFrameV4ForTest(fetchRequestV4BodyForTest(fetchRequestV4{Topics: []fetchTopicRequestV4{{Name: "orders", Partitions: []fetchPartitionRequestV4{{Index: 0, FetchOffset: 4, PartitionMaxBytes: 128}}}}}))
+	request := fetchRequestFrameV4ForTest(fetchRequestV4BodyForTest(fetchRequestV4{MaxBytes: 1024, Topics: []fetchTopicRequestV4{{Name: "orders", Partitions: []fetchPartitionRequestV4{{Index: 0, FetchOffset: 4, PartitionMaxBytes: 128}}}}}))
 	if _, err := client.Write(appendFrame(nil, request)); err != nil {
 		t.Fatalf("write Fetch request: %v", err)
 	}
