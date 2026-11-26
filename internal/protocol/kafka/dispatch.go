@@ -20,7 +20,17 @@ func HandleKafkaRequest(requestFrame []byte, maxFrameBytes int32, supportedAPIs 
 		}
 		return HandleProduceRequestV3(requestFrame, maxFrameBytes, appendBatch)
 	case 18:
-		return HandleAPIVersionsRequestV3(requestFrame, maxFrameBytes, supportedAPIs)
+		if len(requestFrame) < 4 {
+			return nil, fmt.Errorf("dispatch Kafka ApiVersions request: frame is %d bytes, want API version", len(requestFrame))
+		}
+		switch apiVersion := int16(binary.BigEndian.Uint16(requestFrame[2:4])); apiVersion {
+		case 0:
+			return HandleAPIVersionsRequestV0(requestFrame, maxFrameBytes, supportedAPIs)
+		case 3:
+			return HandleAPIVersionsRequestV3(requestFrame, maxFrameBytes, supportedAPIs)
+		default:
+			return nil, fmt.Errorf("dispatch Kafka ApiVersions request: unsupported API version %d", apiVersion)
+		}
 	default:
 		return nil, fmt.Errorf("dispatch Kafka request: unsupported API key %d", apiKey)
 	}

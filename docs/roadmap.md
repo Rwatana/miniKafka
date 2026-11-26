@@ -145,3 +145,4 @@ being described as behavior from the Node reference.
 | 88 | `kafka.HandleFetchRequestV4` | Apply Fetch v4's aggregate max_bytes budget across requested partitions. |
 | 89 | `kafka.HandleFetchRequestV4` | Wait for min_bytes or max_wait_ms before returning Fetch data. |
 | 90 | `kafka.HandleAPIVersionsRequestV0` | Answer the fixed-schema ApiVersions v0 bootstrap request used by Kafka clients. |
+| 91 | `kafka.HandleKafkaRequest` | Select ApiVersions v0 or v3 from the request header without schema confusion. |

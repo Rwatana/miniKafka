@@ -9,9 +9,12 @@ validates the version and header format it supports.
 ## Go design
 
 `HandleKafkaRequest` reads the fixed-width API key and dispatches Metadata v0
-to `HandleMetadataRequestV0` and ApiVersions v3 to
-`HandleAPIVersionsRequestV3`. The handlers keep their own version and schema
-validation. API keys without an implementation return an explicit error.
+to `HandleMetadataRequestV0`, ApiVersions v0 to
+`HandleAPIVersionsRequestV0`, and ApiVersions v3 to
+`HandleAPIVersionsRequestV3`. ApiVersions also needs the schema version from
+the request header to select its decoder. The handlers keep their own version
+and body validation. API keys and ApiVersions versions without an
+implementation return an explicit error.
 
 `HandleKafkaRequestWithFetchReader` is the reader-aware entry point for the
 Fetch v4 handler. It delegates other API keys to the original dispatcher so
