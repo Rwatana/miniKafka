@@ -114,3 +114,10 @@ func DecodeRequestHeaderV2(frame []byte) (RequestHeader, []byte, error) {
 	bodyStart := 8 + clientIDBytes + tagBytes
 	return header, frame[bodyStart:], nil
 }
+
+// encodeResponseHeaderV0 encodes one Kafka response correlation ID.
+func encodeResponseHeaderV0(correlationID int32) []byte {
+	var encoded [4]byte
+	binary.BigEndian.PutUint32(encoded[:], uint32(correlationID))
+	return encoded[:]
+}
