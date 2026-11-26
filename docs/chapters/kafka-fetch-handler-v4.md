@@ -14,6 +14,10 @@ and returns a response frame with the request's correlation ID. A partition
 read error is represented by Kafka's unknown-server error code while other
 partitions remain independently answerable.
 
+An offset above the returned high watermark produces Kafka's
+`OFFSET_OUT_OF_RANGE` error and omits records. An offset equal to the high
+watermark remains a valid empty read.
+
 This implementation reports the high watermark as the last stable offset and
 uses no aborted-transaction entries because the current broker has no
 transaction protocol.

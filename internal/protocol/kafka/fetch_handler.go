@@ -36,6 +36,10 @@ func HandleFetchRequestV4(requestFrame []byte, maxFrameBytes int32, readBatches 
 				partitionResponse.ErrorCode = -1
 				partitionResponse.HighWatermark = -1
 				partitionResponse.LastStableOffset = -1
+			} else if partition.FetchOffset > highWatermark {
+				partitionResponse.ErrorCode = 1
+				partitionResponse.HighWatermark = highWatermark
+				partitionResponse.LastStableOffset = highWatermark
 			} else {
 				partitionResponse.HighWatermark = highWatermark
 				partitionResponse.LastStableOffset = highWatermark

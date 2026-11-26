@@ -75,6 +75,45 @@ func TestHandleFetchRequestV4MapsPartitionReadErrors(t *testing.T) {
 	}
 }
 
+func TestHandleFetchRequestV4ReportsOffsetsBeyondHighWatermark(t *testing.T) {
+	requestFor := func(offset int64) []byte {
+		body := fetchRequestV4BodyForTest(fetchRequestV4{Topics: []fetchTopicRequestV4{{Name: "orders", Partitions: []fetchPartitionRequestV4{{Index: 0, FetchOffset: offset}}}}})
+		return fetchRequestFrameV4ForTest(body)
+	}
+	tests := []struct {
+		name     string
+		offset   int64
+		wantCode int16
+		wantData []byte
+	}{
+		{name: "at high watermark remains valid", offset: 8, wantCode: 0, wantData: []byte{}},
+		{name: "beyond high watermark is out of range", offset: 9, wantCode: 1, wantData: nil},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			response, err := HandleFetchRequestV4(requestFor(test.offset), 1024, func(string, int, int64, int32) ([]byte, int64, error) {
+				return []byte{}, 8, nil
+			})
+			if err != nil {
+				t.Fatalf("HandleFetchRequestV4() error = %v", err)
+			}
+			wantBody, err := encodeFetchResponseV4(fetchResponseV4{Topics: []fetchTopicResponseV4{{Name: "orders", Partitions: []fetchPartitionResponseV4{{
+				Index: 0, ErrorCode: test.wantCode, HighWatermark: 8, LastStableOffset: 8, Records: test.wantData,
+			}}}}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			want, err := encodeResponseFrame(append(encodeResponseHeaderV0(42), wantBody...), 1024)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !bytes.Equal(response, want) {
+				t.Errorf("Fetch response = %x, want %x", response, want)
+			}
+		})
+	}
+}
+
 func TestHandleFetchRequestV4RejectsInvalidRequests(t *testing.T) {
 	valid := fetchRequestFrameV4ForTest(fetchRequestV4BodyForTest(fetchRequestV4{}))
 	wrongAPI := append([]byte(nil), valid...)
