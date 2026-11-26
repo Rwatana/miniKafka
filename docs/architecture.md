@@ -49,6 +49,9 @@ cmd/minikafka
 - `internal/broker` coordinates partition operations and offset calculations.
 - `internal/adapter/http` translates HTTP requests and responses to broker
   calls.
+- `internal/protocol/kafka` implements versioned Kafka TCP wire formats. The
+  existing HTTP adapter remains the educational MiniKafka API while Kafka
+  protocol compatibility is added in separate vertical slices.
 - `cmd/minikafka` wires dependencies and starts the process.
 - The dashboard is served by Go's `html/template` and static files. It calls
   the same HTTP API as external clients; it does not introduce another broker
