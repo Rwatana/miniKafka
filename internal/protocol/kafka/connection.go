@@ -33,3 +33,30 @@ func ServeAPIVersionsV3Connection(conn net.Conn, maxFrameBytes int32, supportedA
 		}
 	}
 }
+
+// ServeKafkaConnection processes ordered Kafka API request frames until the connection closes.
+func ServeKafkaConnection(conn net.Conn, maxFrameBytes int32, supportedAPIs []APIVersionRange, brokers []MetadataBroker, topics []MetadataTopic) error {
+	for {
+		requestFrame, err := ReadRequestFrame(conn, maxFrameBytes)
+		if errors.Is(err, io.EOF) {
+			return nil
+		}
+		if err != nil {
+			return fmt.Errorf("read Kafka request: %w", err)
+		}
+		response, err := HandleKafkaRequest(requestFrame, maxFrameBytes, supportedAPIs, brokers, topics)
+		if err != nil {
+			return fmt.Errorf("handle Kafka request: %w", err)
+		}
+		for len(response) > 0 {
+			written, err := conn.Write(response)
+			if err != nil {
+				return fmt.Errorf("write Kafka response: %w", err)
+			}
+			if written == 0 {
+				return io.ErrShortWrite
+			}
+			response = response[written:]
+		}
+	}
+}

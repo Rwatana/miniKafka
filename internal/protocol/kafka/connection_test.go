@@ -85,10 +85,85 @@ func TestServeAPIVersionsV3ConnectionHandlesWriteFailures(t *testing.T) {
 	}
 }
 
+func TestServeKafkaConnectionProcessesMixedAPIs(t *testing.T) {
+	server, client := net.Pipe()
+	done := make(chan error, 1)
+	supported := []APIVersionRange{{APIKey: 18, MinVersion: 0, MaxVersion: 3}}
+	go func() { done <- ServeKafkaConnection(server, 1024, supported, nil, nil) }()
+	requests := appendFrame(nil, apiVersionsRequestFrameForTest(1))
+	requests = appendFrame(requests, metadataRequestFrameV0(3, 0, 2, []byte{0, 0, 0, 0}))
+	writeDone := make(chan error, 1)
+	go func() { _, err := client.Write(requests); writeDone <- err }()
+
+	wantResponses := [][]byte{
+		{0, 0, 0, 1, 0, 0, 2, 0, 18, 0, 0, 0, 3, 0, 0, 0, 0, 0},
+		{0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0},
+	}
+	for _, want := range wantResponses {
+		got, err := ReadRequestFrame(client, 1024)
+		if err != nil {
+			t.Fatalf("ReadRequestFrame() error = %v", err)
+		}
+		if !bytes.Equal(got, want) {
+			t.Errorf("response = %x, want %x", got, want)
+		}
+	}
+	if err := <-writeDone; err != nil {
+		t.Fatalf("write requests: %v", err)
+	}
+	_ = client.Close()
+	if err := <-done; err != nil {
+		t.Errorf("ServeKafkaConnection() error = %v, want clean EOF", err)
+	}
+	_ = server.Close()
+}
+
+func TestServeKafkaConnectionReturnsReadAndDispatchErrors(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		input  []byte
+		reader *bytes.Reader
+	}{
+		{name: "partial frame", reader: bytes.NewReader([]byte{0, 0})},
+		{name: "unsupported API", input: appendFrame(nil, []byte{0, 99})},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			reader := test.reader
+			if reader == nil {
+				reader = bytes.NewReader(test.input)
+			}
+			if err := ServeKafkaConnection(&testConn{reader: reader}, 1024, nil, nil, nil); err == nil {
+				t.Error("ServeKafkaConnection() error = nil, want error")
+			}
+		})
+	}
+}
+
+func TestServeKafkaConnectionHandlesWrites(t *testing.T) {
+	request := appendFrame(nil, apiVersionsRequestFrameForTest(1))
+	for name, conn := range map[string]*testConn{
+		"write error":   {reader: bytes.NewReader(request), writeErr: io.ErrClosedPipe},
+		"zero write":    {reader: bytes.NewReader(request), zeroWrite: true},
+		"partial write": {reader: bytes.NewReader(request), writeLimit: 1},
+	} {
+		t.Run(name, func(t *testing.T) {
+			err := ServeKafkaConnection(conn, 1024, []APIVersionRange{{APIKey: 18, MinVersion: 0, MaxVersion: 3}}, nil, nil)
+			if name == "partial write" {
+				if err != nil {
+					t.Errorf("ServeKafkaConnection() error = %v, want clean EOF", err)
+				}
+			} else if err == nil {
+				t.Error("ServeKafkaConnection() error = nil, want write error")
+			}
+		})
+	}
+}
+
 type testConn struct {
-	reader    *bytes.Reader
-	writeErr  error
-	zeroWrite bool
+	reader     *bytes.Reader
+	writeErr   error
+	zeroWrite  bool
+	writeLimit int
 }
 
 func (c *testConn) Read(p []byte) (int, error) { return c.reader.Read(p) }
@@ -98,6 +173,9 @@ func (c *testConn) Write(p []byte) (int, error) {
 	}
 	if c.zeroWrite {
 		return 0, nil
+	}
+	if c.writeLimit > 0 && len(p) > c.writeLimit {
+		return c.writeLimit, nil
 	}
 	return len(p), nil
 }
