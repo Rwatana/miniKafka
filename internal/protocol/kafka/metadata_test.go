@@ -15,9 +15,10 @@ func TestDecodeMetadataRequestV0(t *testing.T) {
 		valid bool
 	}{
 		{name: "empty topics", body: []byte{0, 0, 0, 0}, want: []string{}, valid: true},
+		{name: "all topics", body: []byte{0xff, 0xff, 0xff, 0xff}, want: []string{}, valid: true},
 		{name: "multiple UTF-8 topics", body: []byte{0, 0, 0, 2, 0, 6, 'o', 'r', 'd', 'e', 'r', 's', 0, 3, 0xe7, 0x8c, 0xab}, want: []string{"orders", "猫"}, valid: true},
 		{name: "truncated array count", body: []byte{0, 0}, valid: false},
-		{name: "negative topic count", body: []byte{0xff, 0xff, 0xff, 0xff}, valid: false},
+		{name: "invalid negative topic count", body: []byte{0xff, 0xff, 0xff, 0xfe}, valid: false},
 		{name: "count exceeds available fields", body: []byte{0, 0, 0, 1}, valid: false},
 		{name: "negative topic length", body: []byte{0, 0, 0, 1, 0xff, 0xff}, valid: false},
 		{name: "truncated topic bytes", body: []byte{0, 0, 0, 1, 0, 3, 'x'}, valid: false},
