@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/Rwatana/miniKafka/internal/kafkaerr"
 	"github.com/Rwatana/miniKafka/internal/storage"
 )
 
@@ -51,15 +52,27 @@ func TestBrokerReadKafkaRecordBatches(t *testing.T) {
 		}
 	})
 
-	t.Run("missing partition returns empty without creating a file", func(t *testing.T) {
+	t.Run("missing partition returns a typed error without creating a file", func(t *testing.T) {
 		directory := t.TempDir()
 		batches, highWatermark, err := (&Broker{DataDir: directory}).ReadKafkaRecordBatches("new", 3, 0, 1024)
-		if err != nil || len(batches) != 0 || highWatermark != 0 {
-			t.Errorf("ReadKafkaRecordBatches() = (%v, %d, %v), want (empty, 0, nil)", batches, highWatermark, err)
+		if !errors.Is(err, kafkaerr.ErrUnknownTopicOrPartition) || batches != nil || highWatermark != 0 {
+			t.Errorf("ReadKafkaRecordBatches() = (%v, %d, %v), want (nil, 0, unknown topic/partition)", batches, highWatermark, err)
 		}
 		path := filepath.Join(directory, "new__3.kafka.log")
 		if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
 			t.Errorf("missing partition stat error = %v, want not-exist", err)
+		}
+	})
+
+	t.Run("present empty partition returns an empty successful read", func(t *testing.T) {
+		directory := t.TempDir()
+		path := filepath.Join(directory, "orders__0.kafka.log")
+		if err := os.WriteFile(path, nil, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		batches, highWatermark, err := (&Broker{DataDir: directory}).ReadKafkaRecordBatches("orders", 0, 0, 1024)
+		if err != nil || highWatermark != 0 || len(batches) != 0 {
+			t.Errorf("ReadKafkaRecordBatches() = (%v, %d, %v), want empty, 0, nil", batches, highWatermark, err)
 		}
 	})
 

@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/Rwatana/miniKafka/internal/kafkaerr"
 	"github.com/Rwatana/miniKafka/internal/storage"
 )
 
@@ -202,7 +203,7 @@ func (broker *Broker) ReadKafkaRecordBatches(topic string, partition int, fetchO
 	if log == nil {
 		path := filepath.Join(broker.DataDir, fmt.Sprintf("%s__%d.kafka.log", topic, partition))
 		if _, err := statBrokerKafkaPartitionLog(path); errors.Is(err, os.ErrNotExist) {
-			return []byte{}, 0, nil
+			return nil, 0, fmt.Errorf("read Kafka topic %q partition %d: %w", topic, partition, kafkaerr.ErrUnknownTopicOrPartition)
 		} else if err != nil {
 			return nil, 0, fmt.Errorf("find Kafka topic %q partition %d: %w", topic, partition, err)
 		}
