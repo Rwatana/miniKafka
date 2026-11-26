@@ -17,8 +17,8 @@ the request header to select its decoder. The handlers keep their own version
 and body validation. API keys and versions without an implementation return
 an explicit error.
 
-`HandleKafkaRequestWithFetchReader` routes Fetch v4 through its batch reader
-and ListOffsets v1 through an optional offset lookup callback. The callback is
+`HandleKafkaRequestWithFetchReader` routes Fetch v2 and v4 through their
+versioned handlers and ListOffsets v1 through an optional offset lookup callback. The callback is
 optional in the Go signature to preserve earlier call sites; a ListOffsets
 request without it returns the handler's explicit missing-lookup error. Other
 API keys continue through the original dispatcher so existing Produce,
