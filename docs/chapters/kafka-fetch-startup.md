@@ -8,17 +8,20 @@ actually handle, and the handler must reach the broker's partition storage.
 
 ## Go design
 
-`main` advertises Fetch v2 through v4 and ListOffsets v1 and starts
+`main` advertises Fetch v2 through v4, ListOffsets v1, and FindCoordinator v1 and starts
 `ServeKafkaWithFetchReader`. It supplies the broker's Kafka batch append, read,
 and timestamp lookup methods, so Produce, Fetch, and ListOffsets operate on the
-same durable partition logs. When the HTTP server exits, startup closes the
-Kafka listener and waits for its accept loop to stop before returning.
+same durable partition logs. The metadata provider supplies the broker endpoint
+that FindCoordinator v1 returns for group coordinator discovery. When the HTTP
+server exits, startup closes the Kafka listener and waits for its accept loop
+to stop before returning.
 
 ## Tests
 
-Startup tests verify the advertised Fetch and ListOffsets ranges and invoke
-both callbacks for a missing partition to confirm that the live broker methods
-are connected and return a typed missing-partition error.
+Startup tests verify the advertised Fetch, ListOffsets, and FindCoordinator
+ranges and invoke the storage callbacks for a missing partition to confirm
+that the live broker methods are connected and return a typed
+missing-partition error.
 
 ## Deliberate limits
 
