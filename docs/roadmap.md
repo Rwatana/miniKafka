@@ -111,3 +111,4 @@ being described as behavior from the Node reference.
 | 54 | `kafka.decodeRecordBatchV2` | Validate magic-v2 batch size and CRC32C, then expose the fixed batch header. |
 | 55 | `kafka.decodeSignedVarint` | Decode Kafka record fields' signed zig-zag VARINT values. |
 | 56 | `kafka.decodeUnsignedVarlong` | Decode bounded ten-byte uint64 base-128 values used by signed Kafka VARLONG fields. |
+| 57 | `kafka.decodeSignedVarlong` | Decode Kafka record fields' signed zig-zag VARLONG values. |

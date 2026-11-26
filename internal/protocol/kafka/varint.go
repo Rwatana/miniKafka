@@ -49,3 +49,13 @@ func decodeUnsignedVarlong(encoded []byte) (uint64, int, error) {
 	}
 	return 0, 0, fmt.Errorf("decode Kafka unsigned varlong: truncated after %d bytes", len(encoded))
 }
+
+// decodeSignedVarlong decodes a Kafka signed zig-zag VARLONG and its encoded length.
+func decodeSignedVarlong(encoded []byte) (int64, int, error) {
+	unsigned, length, err := decodeUnsignedVarlong(encoded)
+	if err != nil {
+		return 0, 0, fmt.Errorf("decode Kafka signed varlong: %w", err)
+	}
+	value := int64(unsigned>>1) ^ -int64(unsigned&1)
+	return value, length, nil
+}
