@@ -103,3 +103,4 @@ being described as behavior from the Node reference.
 | 46 | `kafka.encodeMetadataResponseV0` | Encode broker, topic, and partition metadata using the legacy v0 schema. |
 | 47 | `kafka.HandleMetadataRequestV0` | Match requested topics, return unknown-topic errors, and frame a correlation-matched Metadata v0 response. |
 | 48 | `metadataTopicsFromPartitions` | Convert discovered single-broker log partitions into deterministically ordered Kafka topic metadata. |
+| 49 | `kafka.HandleKafkaRequest` | Dispatch Metadata v0 and ApiVersions v3 frames to their API handlers. |
