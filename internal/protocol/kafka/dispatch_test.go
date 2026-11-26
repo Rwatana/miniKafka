@@ -270,6 +270,30 @@ func TestHandleKafkaRequestWithFetchReaderRoutesFetchV3(t *testing.T) {
 	}
 }
 
+func TestHandleKafkaRequestWithFetchReaderRoutesFindCoordinatorV1(t *testing.T) {
+	request := findCoordinatorRequestFrameV1ForTest([]byte{0, 1, 'g', 0})
+	brokers := []MetadataBroker{{NodeID: 1, Host: "broker.test", Port: 9092}}
+	got, err := HandleKafkaRequestWithFetchReader(request, 1024, nil, brokers, nil, nil, nil)
+	if err != nil {
+		t.Fatalf("HandleKafkaRequestWithFetchReader(FindCoordinator) error = %v", err)
+	}
+	want, err := HandleFindCoordinatorRequestV1(request, 1024, brokers[0])
+	if err != nil {
+		t.Fatalf("HandleFindCoordinatorRequestV1() error = %v", err)
+	}
+	if !bytes.Equal(got, want) {
+		t.Errorf("FindCoordinator response = %x, want %x", got, want)
+	}
+	if _, err := HandleKafkaRequestWithFetchReader(request, 1024, nil, nil, nil, nil, nil); err == nil {
+		t.Error("missing coordinator metadata error = nil, want dispatch error")
+	}
+	unsupported := append([]byte(nil), request...)
+	unsupported[3] = 2
+	if _, err := HandleKafkaRequestWithFetchReader(unsupported, 1024, nil, brokers, nil, nil, nil); err == nil {
+		t.Error("unsupported FindCoordinator version error = nil, want handler error")
+	}
+}
+
 func fetchRequestFrameVersionForTest(frame []byte, version byte) []byte {
 	versioned := append([]byte(nil), frame...)
 	versioned[3] = version

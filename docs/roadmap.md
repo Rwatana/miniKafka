@@ -169,3 +169,4 @@ being described as behavior from the Node reference.
 | 112 | `kafka.HandleKafkaRequestWithFetchReader` | Route Fetch v3 frames to their versioned handler. |
 | 113 | `main` | Advertise Fetch v2-v4 after all three handlers are wired. |
 | 114 | `kafka.HandleFindCoordinatorRequestV1` | Return the broker endpoint for a consumer-group coordinator query. |
+| 115 | `kafka.HandleKafkaRequestWithFetchReader` | Route FindCoordinator v1 using broker metadata. |
