@@ -89,3 +89,4 @@ being described as behavior from the Node reference.
 | 32 | `kafka.decodeCompactNullableString` | Decode Kafka's length-plus-one compact nullable UTF-8 strings and preserve following fields. |
 | 33 | `kafka.skipTaggedFields` | Validate and skip Kafka flexible-protocol tag buffers while preserving following fields. |
 | 34 | `kafka.DecodeRequestHeaderV2` | Decode flexible request headers using compact client IDs and tagged fields. |
+| 35 | `kafka.encodeResponseHeaderV0` | Encode the four-byte correlation ID in a non-flexible Kafka response header. |
