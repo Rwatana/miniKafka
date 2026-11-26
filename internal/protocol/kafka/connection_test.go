@@ -294,6 +294,97 @@ func TestServeKafkaConnectionReturnsMetadataProviderErrors(t *testing.T) {
 	}
 }
 
+func TestServeKafkaConnectionWithFetchReaderProcessesOrderedRequests(t *testing.T) {
+	server, client := net.Pipe()
+	done := make(chan error, 1)
+	request := fetchRequestFrameV4ForTest(fetchRequestV4BodyForTest(fetchRequestV4{
+		Topics: []fetchTopicRequestV4{{Name: "orders", Partitions: []fetchPartitionRequestV4{{Index: 2, FetchOffset: 11, PartitionMaxBytes: 64}}}},
+	}))
+	var supported = []APIVersionRange{{APIKey: 18, MinVersion: 0, MaxVersion: 3}}
+	go func() {
+		done <- ServeKafkaConnectionWithFetchReader(server, 1024, supported, nil, nil, func(topic string, partition int, offset int64, maxBytes int32) ([]byte, int64, error) {
+			if topic != "orders" || partition != 2 || offset != 11 || maxBytes != 64 {
+				t.Errorf("Fetch reader args = (%q, %d, %d, %d)", topic, partition, offset, maxBytes)
+			}
+			return []byte{0xaa, 0xbb}, 12, nil
+		})
+	}()
+	requests := appendFrame(nil, request)
+	requests = appendFrame(requests, apiVersionsRequestFrameForTest(19))
+	writeDone := make(chan error, 1)
+	go func() { _, err := client.Write(requests); writeDone <- err }()
+	fetchResponse, err := ReadRequestFrame(client, 1024)
+	if err != nil {
+		t.Fatalf("read Fetch response: %v", err)
+	}
+	if len(fetchResponse) < 4 || int32(fetchResponse[3]) != 42 {
+		t.Errorf("Fetch response correlation ID = %x, want 42", fetchResponse[:min(4, len(fetchResponse))])
+	}
+	apiVersionsResponse, err := ReadRequestFrame(client, 1024)
+	if err != nil {
+		t.Fatalf("read ApiVersions response: %v", err)
+	}
+	if len(apiVersionsResponse) < 4 || int32(apiVersionsResponse[3]) != 19 {
+		t.Errorf("ApiVersions response correlation ID = %x, want 19", apiVersionsResponse[:min(4, len(apiVersionsResponse))])
+	}
+	if err := <-writeDone; err != nil {
+		t.Fatalf("write requests: %v", err)
+	}
+	_ = client.Close()
+	if err := <-done; err != nil {
+		t.Errorf("ServeKafkaConnectionWithFetchReader() error = %v, want clean EOF", err)
+	}
+	_ = server.Close()
+}
+
+func TestServeKafkaConnectionWithFetchReaderReturnsProtocolErrors(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		input  []byte
+		reader *bytes.Reader
+	}{
+		{name: "partial frame", reader: bytes.NewReader([]byte{0, 0})},
+		{name: "unsupported API", input: appendFrame(nil, []byte{0, 99})},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			reader := test.reader
+			if reader == nil {
+				reader = bytes.NewReader(test.input)
+			}
+			if err := ServeKafkaConnectionWithFetchReader(&testConn{reader: reader}, 1024, nil, nil, nil, nil); err == nil {
+				t.Error("ServeKafkaConnectionWithFetchReader() error = nil, want error")
+			}
+		})
+	}
+
+	metadataFrame := appendFrame(nil, metadataRequestFrameV0(3, 0, 4, []byte{0, 0, 0, 0}))
+	metadataErr := errors.New("metadata unavailable")
+	provider := func() ([]MetadataBroker, []MetadataTopic, error) { return nil, nil, metadataErr }
+	if err := ServeKafkaConnectionWithFetchReader(&testConn{reader: bytes.NewReader(metadataFrame)}, 1024, nil, provider, nil, nil); !errors.Is(err, metadataErr) {
+		t.Errorf("metadata error = %v, want %v", err, metadataErr)
+	}
+}
+
+func TestServeKafkaConnectionWithFetchReaderHandlesSocketWrites(t *testing.T) {
+	request := appendFrame(nil, apiVersionsRequestFrameForTest(1))
+	for name, conn := range map[string]*testConn{
+		"write error":   {reader: bytes.NewReader(request), writeErr: io.ErrClosedPipe},
+		"zero write":    {reader: bytes.NewReader(request), zeroWrite: true},
+		"partial write": {reader: bytes.NewReader(request), writeLimit: 1},
+	} {
+		t.Run(name, func(t *testing.T) {
+			err := ServeKafkaConnectionWithFetchReader(conn, 1024, []APIVersionRange{{APIKey: 18, MinVersion: 0, MaxVersion: 3}}, nil, nil, nil)
+			if name == "partial write" {
+				if err != nil {
+					t.Errorf("ServeKafkaConnectionWithFetchReader() error = %v, want clean EOF", err)
+				}
+			} else if err == nil {
+				t.Error("ServeKafkaConnectionWithFetchReader() error = nil, want write error")
+			}
+		})
+	}
+}
+
 type testConn struct {
 	reader     *bytes.Reader
 	writeErr   error
