@@ -42,8 +42,8 @@ func ServeKafka(listener net.Listener, maxFrameBytes int32, supportedAPIs []APIV
 	}
 }
 
-// ServeKafkaWithFetchReader accepts clients and serves connections with a broker-backed Fetch reader.
-func ServeKafkaWithFetchReader(listener net.Listener, maxFrameBytes int32, supportedAPIs []APIVersionRange, metadataProvider MetadataProvider, appendBatch KafkaBatchAppender, readBatches KafkaBatchReader) error {
+// ServeKafkaWithFetchReader accepts clients and serves connections with broker-backed Fetch and ListOffsets callbacks.
+func ServeKafkaWithFetchReader(listener net.Listener, maxFrameBytes int32, supportedAPIs []APIVersionRange, metadataProvider MetadataProvider, appendBatch KafkaBatchAppender, readBatches KafkaBatchReader, offsetLookups ...KafkaOffsetLookup) error {
 	for {
 		conn, err := listener.Accept()
 		if errors.Is(err, net.ErrClosed) {
@@ -54,7 +54,7 @@ func ServeKafkaWithFetchReader(listener net.Listener, maxFrameBytes int32, suppo
 		}
 		connection := conn
 		go func() {
-			_ = ServeKafkaConnectionWithFetchReader(connection, maxFrameBytes, supportedAPIs, metadataProvider, appendBatch, readBatches)
+			_ = ServeKafkaConnectionWithFetchReader(connection, maxFrameBytes, supportedAPIs, metadataProvider, appendBatch, readBatches, offsetLookups...)
 			_ = connection.Close()
 		}()
 	}
