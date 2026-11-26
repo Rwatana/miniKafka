@@ -170,6 +170,40 @@ func TestHandleKafkaRequestWithFetchReaderRoutesFetchAndPreservesExistingAPIs(t 
 	}
 }
 
+func TestHandleKafkaRequestWithFetchReaderRoutesListOffsets(t *testing.T) {
+	request := listOffsetsRequestFrameForTest(2, 1, 31, []byte{
+		0xff, 0xff, 0xff, 0xff, 0, 0, 0, 1,
+		0, 6, 'o', 'r', 'd', 'e', 'r', 's', 0, 0, 0, 1,
+		0, 0, 0, 0, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xfe,
+	})
+	called := false
+	lookup := func(topic string, partition int, timestamp int64) (int64, int64, error) {
+		called = true
+		if topic != "orders" || partition != 0 || timestamp != -2 {
+			t.Errorf("lookup args = (%q, %d, %d), want (orders, 0, -2)", topic, partition, timestamp)
+		}
+		return 0, -1, nil
+	}
+	got, err := HandleKafkaRequestWithFetchReader(request, 1024, nil, nil, nil, nil, nil, lookup)
+	if err != nil {
+		t.Fatalf("HandleKafkaRequestWithFetchReader(ListOffsets) error = %v", err)
+	}
+	if !called {
+		t.Fatal("offset lookup was not called")
+	}
+	want, err := HandleListOffsetsRequestV1(request, 1024, lookup)
+	if err != nil {
+		t.Fatalf("HandleListOffsetsRequestV1() error = %v", err)
+	}
+	if !bytes.Equal(got, want) {
+		t.Errorf("ListOffsets response = %x, want %x", got, want)
+	}
+
+	if _, err := HandleKafkaRequestWithFetchReader(request, 1024, nil, nil, nil, nil, nil); err == nil {
+		t.Error("missing ListOffsets lookup error = nil, want handler error")
+	}
+}
+
 func fetchRequestFrameVersionForTest(frame []byte, version byte) []byte {
 	versioned := append([]byte(nil), frame...)
 	versioned[3] = version

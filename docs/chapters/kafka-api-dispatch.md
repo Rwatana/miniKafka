@@ -17,17 +17,21 @@ the request header to select its decoder. The handlers keep their own version
 and body validation. API keys and versions without an implementation return
 an explicit error.
 
-`HandleKafkaRequestWithFetchReader` is the reader-aware entry point for the
-Fetch v4 handler. It delegates other API keys to the original dispatcher so
-existing Produce, Metadata, and ApiVersions callers retain their current
-contract while Fetch is threaded through the connection stack in later steps.
+`HandleKafkaRequestWithFetchReader` routes Fetch v4 through its batch reader
+and ListOffsets v1 through an optional offset lookup callback. The callback is
+optional in the Go signature to preserve earlier call sites; a ListOffsets
+request without it returns the handler's explicit missing-lookup error. Other
+API keys continue through the original dispatcher so existing Produce,
+Metadata, and ApiVersions callers retain their current contract.
 
 ## Tests
 
-Tests verify the existing API routes, Fetch delegation, response framing, and
-errors for a truncated request and an unimplemented API key.
+Tests verify the existing API routes, Fetch delegation, ListOffsets delegation
+and callback arguments, response framing, and errors for missing callbacks, a
+truncated request, and an unimplemented API key.
 
 ## Deliberate limits
 
-This function routes a single in-memory request frame. The TCP connection
-loop still needs to call it, and most Apache Kafka APIs remain unimplemented.
+This function routes a single in-memory request frame. The TCP connection loop
+still needs to pass a broker offset lookup callback, and most Apache Kafka APIs
+remain unimplemented.
