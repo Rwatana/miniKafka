@@ -107,3 +107,4 @@ being described as behavior from the Node reference.
 | 50 | `kafka.ServeKafkaConnection` | Process ordered mixed-API frames and refresh broker metadata for every Metadata request. |
 | 51 | `kafka.ServeKafka` | Accept concurrent Kafka clients and serve each through the mixed-API connection loop. |
 | 52 | `main` | Advertise Metadata v0 and serve live file-backed topics through the Kafka listener. |
+| 53 | `kafka.decodeProduceRequestV3` | Decode Produce v3 request fields and retain partition record sets as bounded opaque bytes. |
