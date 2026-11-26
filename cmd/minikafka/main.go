@@ -74,7 +74,7 @@ func main() {
 		defer close(kafkaDone)
 		supportedAPIs := []kafkaprotocol.APIVersionRange{
 			{APIKey: 0, MinVersion: 3, MaxVersion: 3},
-			{APIKey: 1, MinVersion: 4, MaxVersion: 4},
+			{APIKey: 1, MinVersion: 2, MaxVersion: 4},
 			{APIKey: 2, MinVersion: 1, MaxVersion: 1},
 			{APIKey: 3, MinVersion: 0, MaxVersion: 1},
 			{APIKey: 18, MinVersion: 0, MaxVersion: 3},

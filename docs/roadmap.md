@@ -167,3 +167,4 @@ being described as behavior from the Node reference.
 | 110 | `kafka.decodeFetchRequestV3` | Parse Fetch v3's aggregate byte budget and partition requests. |
 | 111 | `kafka.HandleFetchRequestV3` | Enforce aggregate limits and return a Fetch v3 response. |
 | 112 | `kafka.HandleKafkaRequestWithFetchReader` | Route Fetch v3 frames to their versioned handler. |
+| 113 | `main` | Advertise Fetch v2-v4 after all three handlers are wired. |
