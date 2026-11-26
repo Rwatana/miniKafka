@@ -127,6 +127,84 @@ func TestServeKafkaConnectionProcessesMixedAPIs(t *testing.T) {
 	_ = server.Close()
 }
 
+func TestServeKafkaConnectionProcessesProduceV3(t *testing.T) {
+	server, client := net.Pipe()
+	done := make(chan error, 1)
+	appendCalls := 0
+	batch := recordBatchV2ForTest(1, 0, recordV2ForTest(kafkaRecordV2{Headers: []recordHeaderV2{}}))
+	expectedBatchSize := len(batch)
+	go func() {
+		done <- ServeKafkaConnection(server, 1024, nil, nil, func(topic string, partition int, batch []byte) (int64, error) {
+			appendCalls++
+			if topic != "orders" || partition != 0 || len(batch) != expectedBatchSize {
+				t.Errorf("appender arguments = (%q, %d, %d bytes), want orders, 0, %d bytes", topic, partition, len(batch), expectedBatchSize)
+			}
+			return 12, nil
+		})
+	}()
+	request := appendFrame(nil, produceRequestFrameV3ForTest(nil, 1, []produceTopicData{{Name: "orders", Partitions: []producePartitionData{{Index: 0, Records: batch}}}}))
+	writeDone := make(chan error, 1)
+	go func() { _, err := client.Write(request); writeDone <- err }()
+	response, err := ReadRequestFrame(client, 1024)
+	if err != nil {
+		t.Fatalf("ReadRequestFrame() error = %v", err)
+	}
+	if err := <-writeDone; err != nil {
+		t.Fatalf("write Produce request: %v", err)
+	}
+	want, err := encodeProduceResponseFrameV3(42, produceResponseV3{Topics: []produceTopicResponseV3{{Name: "orders", Partitions: []producePartitionResponseV3{{Index: 0, BaseOffset: 12, LogAppendTimeMs: -1}}}}}, 1024)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(response, want[4:]) {
+		t.Errorf("Produce response body = %x, want %x", response, want[4:])
+	}
+	_ = client.Close()
+	if err := <-done; err != nil {
+		t.Errorf("ServeKafkaConnection() error = %v, want clean EOF", err)
+	}
+	_ = server.Close()
+	if appendCalls != 1 {
+		t.Errorf("append calls = %d, want 1", appendCalls)
+	}
+}
+
+func TestServeKafkaConnectionSkipsProduceAcksZeroResponse(t *testing.T) {
+	server, client := net.Pipe()
+	done := make(chan error, 1)
+	appendCalls := 0
+	supported := []APIVersionRange{{APIKey: 18, MinVersion: 0, MaxVersion: 3}}
+	go func() {
+		done <- ServeKafkaConnection(server, 1024, supported, nil, func(string, int, []byte) (int64, error) {
+			appendCalls++
+			return 0, nil
+		})
+	}()
+	batch := recordBatchV2ForTest(1, 0, recordV2ForTest(kafkaRecordV2{Headers: []recordHeaderV2{}}))
+	requests := appendFrame(nil, produceRequestFrameV3ForTest(nil, 0, []produceTopicData{{Name: "orders", Partitions: []producePartitionData{{Index: 0, Records: batch}}}}))
+	requests = appendFrame(requests, apiVersionsRequestFrameForTest(19))
+	writeDone := make(chan error, 1)
+	go func() { _, err := client.Write(requests); writeDone <- err }()
+	response, err := ReadRequestFrame(client, 1024)
+	if err != nil {
+		t.Fatalf("ReadRequestFrame() after acks=0 error = %v", err)
+	}
+	if len(response) < 4 || int32(response[3]) != 19 {
+		t.Errorf("response after acks=0 = %x, want following ApiVersions correlation ID 19", response)
+	}
+	if err := <-writeDone; err != nil {
+		t.Fatalf("write requests: %v", err)
+	}
+	_ = client.Close()
+	if err := <-done; err != nil {
+		t.Errorf("ServeKafkaConnection() error = %v, want clean EOF", err)
+	}
+	_ = server.Close()
+	if appendCalls != 1 {
+		t.Errorf("append calls = %d, want 1", appendCalls)
+	}
+}
+
 func TestServeKafkaConnectionReturnsReadAndDispatchErrors(t *testing.T) {
 	for _, test := range []struct {
 		name   string
