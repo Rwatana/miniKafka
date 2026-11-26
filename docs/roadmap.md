@@ -144,3 +144,4 @@ being described as behavior from the Node reference.
 | 87 | `main` | Close and join the Kafka serving goroutine as the application shuts down. |
 | 88 | `kafka.HandleFetchRequestV4` | Apply Fetch v4's aggregate max_bytes budget across requested partitions. |
 | 89 | `kafka.HandleFetchRequestV4` | Wait for min_bytes or max_wait_ms before returning Fetch data. |
+| 90 | `kafka.HandleAPIVersionsRequestV0` | Answer the fixed-schema ApiVersions v0 bootstrap request used by Kafka clients. |
