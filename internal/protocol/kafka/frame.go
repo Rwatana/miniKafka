@@ -91,3 +91,26 @@ func DecodeRequestHeaderV1(frame []byte) (RequestHeader, []byte, error) {
 	}
 	return header, frame[bodyStart:], nil
 }
+
+// DecodeRequestHeaderV2 decodes a flexible Kafka request header and returns its body.
+func DecodeRequestHeaderV2(frame []byte) (RequestHeader, []byte, error) {
+	if len(frame) < 8 {
+		return RequestHeader{}, nil, fmt.Errorf("decode Kafka request header v2: fixed header is %d bytes, want at least 8", len(frame))
+	}
+	header := RequestHeader{
+		APIKey:        int16(binary.BigEndian.Uint16(frame[0:2])),
+		APIVersion:    int16(binary.BigEndian.Uint16(frame[2:4])),
+		CorrelationID: int32(binary.BigEndian.Uint32(frame[4:8])),
+	}
+	clientID, clientIDBytes, err := decodeCompactNullableString(frame[8:])
+	if err != nil {
+		return RequestHeader{}, nil, fmt.Errorf("decode Kafka request header v2 client ID: %w", err)
+	}
+	header.ClientID = clientID
+	tagBytes, err := skipTaggedFields(frame[8+clientIDBytes:])
+	if err != nil {
+		return RequestHeader{}, nil, fmt.Errorf("decode Kafka request header v2 tags: %w", err)
+	}
+	bodyStart := 8 + clientIDBytes + tagBytes
+	return header, frame[bodyStart:], nil
+}
