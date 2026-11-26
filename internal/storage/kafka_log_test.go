@@ -202,6 +202,119 @@ func TestRecoverKafkaPartitionLogHandlesHeaderReadFailure(t *testing.T) {
 	}
 }
 
+func TestAppendKafkaRecordBatchAssignsOffsetsAndPreservesInput(t *testing.T) {
+	log, err := OpenKafkaPartitionLog(filepath.Join(t.TempDir(), "partition.log"))
+	if err != nil {
+		t.Fatalf("OpenKafkaPartitionLog() error = %v", err)
+	}
+	defer log.file.Close()
+	first := kafkaBatchForTest(99, 1, 2)
+	original := append([]byte(nil), first...)
+	baseOffset, err := AppendKafkaRecordBatch(log, first)
+	if err != nil {
+		t.Fatalf("AppendKafkaRecordBatch(first) error = %v", err)
+	}
+	if baseOffset != 0 || log.nextOffset != 2 {
+		t.Errorf("first append = (base %d, next %d), want (0, 2)", baseOffset, log.nextOffset)
+	}
+	if string(first) != string(original) {
+		t.Error("AppendKafkaRecordBatch() modified the caller's batch")
+	}
+	second := kafkaBatchForTest(99, 0, 1)
+	baseOffset, err = AppendKafkaRecordBatch(log, second)
+	if err != nil {
+		t.Fatalf("AppendKafkaRecordBatch(second) error = %v", err)
+	}
+	if baseOffset != 2 || log.nextOffset != 3 {
+		t.Errorf("second append = (base %d, next %d), want (2, 3)", baseOffset, log.nextOffset)
+	}
+	if err := RecoverKafkaPartitionLog(log); err != nil {
+		t.Fatalf("RecoverKafkaPartitionLog(appended) error = %v", err)
+	}
+	if log.nextOffset != 3 {
+		t.Errorf("recovered appended offset = %d, want 3", log.nextOffset)
+	}
+}
+
+func TestAppendKafkaRecordBatchRejectsInvalidInputs(t *testing.T) {
+	if offset, err := AppendKafkaRecordBatch(nil, nil); offset != 0 || err == nil {
+		t.Errorf("AppendKafkaRecordBatch(nil) = (%d, %v), want nil-log error", offset, err)
+	}
+	log, err := OpenKafkaPartitionLog(filepath.Join(t.TempDir(), "partition.log"))
+	if err != nil {
+		t.Fatalf("OpenKafkaPartitionLog() error = %v", err)
+	}
+	defer log.file.Close()
+	short := []byte{1}
+	shortLength := kafkaBatchForTest(0, 0, 1)
+	shortLength[11] = 48
+	wrongLength := kafkaBatchForTest(0, 0, 1)
+	wrongLength[11] = 50
+	wrongMagic := kafkaBatchForTest(0, 0, 1)
+	wrongMagic[16] = 1
+	negativeDelta := kafkaBatchForTest(0, -1, 1)
+	negativeCount := kafkaBatchForTest(0, 0, -1)
+	for _, batch := range [][]byte{short, shortLength, wrongLength, wrongMagic, negativeDelta, negativeCount} {
+		if _, err := AppendKafkaRecordBatch(log, batch); err == nil {
+			t.Errorf("AppendKafkaRecordBatch(%d bytes) error = nil, want invalid-input error", len(batch))
+		}
+	}
+	log.nextOffset = int64(^uint64(0) >> 1)
+	if _, err := AppendKafkaRecordBatch(log, kafkaBatchForTest(0, 0, 1)); err == nil {
+		t.Error("AppendKafkaRecordBatch(overflow) error = nil, want offset-overflow error")
+	}
+	closed, err := OpenKafkaPartitionLog(filepath.Join(t.TempDir(), "closed.log"))
+	if err != nil {
+		t.Fatalf("OpenKafkaPartitionLog(closed fixture) error = %v", err)
+	}
+	if err := closed.file.Close(); err != nil {
+		t.Fatalf("close fixture: %v", err)
+	}
+	if _, err := AppendKafkaRecordBatch(closed, kafkaBatchForTest(0, 0, 1)); err == nil {
+		t.Error("AppendKafkaRecordBatch(closed) error = nil, want closed-file error")
+	}
+}
+
+func TestAppendKafkaRecordBatchRollsBackWriteAndSyncFailures(t *testing.T) {
+	for _, test := range []struct {
+		name  string
+		write func(*os.File, []byte) (int, error)
+		sync  func(*os.File) error
+	}{
+		{name: "write error", write: func(*os.File, []byte) (int, error) { return 0, os.ErrPermission }},
+		{name: "short write", write: func(*os.File, []byte) (int, error) { return 0, nil }},
+		{name: "sync error", write: func(file *os.File, batch []byte) (int, error) { return file.Write(batch) }, sync: func(*os.File) error { return os.ErrPermission }},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			log, err := OpenKafkaPartitionLog(filepath.Join(t.TempDir(), "partition.log"))
+			if err != nil {
+				t.Fatalf("OpenKafkaPartitionLog() error = %v", err)
+			}
+			defer log.file.Close()
+			previousWrite := writeKafkaBatch
+			previousSync := syncKafkaPartitionLog
+			writeKafkaBatch = test.write
+			if test.sync != nil {
+				syncKafkaPartitionLog = test.sync
+			}
+			defer func() {
+				writeKafkaBatch = previousWrite
+				syncKafkaPartitionLog = previousSync
+			}()
+			if _, err := AppendKafkaRecordBatch(log, kafkaBatchForTest(0, 0, 1)); err == nil {
+				t.Error("AppendKafkaRecordBatch() error = nil, want injected I/O error")
+			}
+			info, err := log.file.Stat()
+			if err != nil {
+				t.Fatalf("stat rolled-back log: %v", err)
+			}
+			if info.Size() != 0 || log.nextOffset != 0 {
+				t.Errorf("failed append left size %d and next offset %d, want both zero", info.Size(), log.nextOffset)
+			}
+		})
+	}
+}
+
 func kafkaBatchForTest(baseOffset int64, lastOffsetDelta, recordCount int32) []byte {
 	batch := make([]byte, 61)
 	binary.BigEndian.PutUint64(batch[0:8], uint64(baseOffset))

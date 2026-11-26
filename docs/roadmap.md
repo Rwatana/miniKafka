@@ -119,3 +119,4 @@ being described as behavior from the Node reference.
 | 62 | `kafka.encodeProduceResponseFrameV3` | Add the matching correlation header and bounded size prefix to Produce v3 response bodies. |
 | 63 | `storage.OpenKafkaPartitionLog` | Open an appendable binary Kafka partition log alongside the reference JSON log. |
 | 64 | `storage.RecoverKafkaPartitionLog` | Validate stored magic-v2 batches and restore the next partition offset. |
+| 65 | `storage.AppendKafkaRecordBatch` | Assign the next base offset and durably append one validated magic-v2 batch. |
