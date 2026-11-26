@@ -1,0 +1,74 @@
+package kafka
+
+import (
+	"bytes"
+	"errors"
+	"net"
+	"testing"
+)
+
+func TestServeAPIVersionsV3AcceptsTCPClient(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("net.Listen() error = %v", err)
+	}
+	done := make(chan error, 1)
+	supported := []APIVersionRange{{APIKey: 18, MinVersion: 0, MaxVersion: 3}}
+	go func() { done <- ServeAPIVersionsV3(listener, 1024, supported) }()
+
+	client, err := net.Dial("tcp", listener.Addr().String())
+	if err != nil {
+		t.Fatalf("net.Dial() error = %v", err)
+	}
+	request := appendFrame(nil, apiVersionsRequestFrameForTest(9))
+	if _, err := client.Write(request); err != nil {
+		t.Fatalf("write request: %v", err)
+	}
+	got, err := ReadRequestFrame(client, 1024)
+	if err != nil {
+		t.Fatalf("ReadRequestFrame() error = %v", err)
+	}
+	want := []byte{0, 0, 0, 9, 0, 0, 2, 0, 18, 0, 0, 0, 3, 0, 0, 0, 0, 0}
+	if !bytes.Equal(got, want) {
+		t.Errorf("response = %x, want %x", got, want)
+	}
+	_ = client.Close()
+	_ = listener.Close()
+	if err := <-done; err != nil {
+		t.Errorf("ServeAPIVersionsV3() error = %v, want clean listener close", err)
+	}
+}
+
+func TestServeAPIVersionsV3ReturnsAcceptErrors(t *testing.T) {
+	wantErr := errors.New("accept failed")
+	listener := &errorListener{err: wantErr}
+	if err := ServeAPIVersionsV3(listener, 1024, nil); !errors.Is(err, wantErr) {
+		t.Errorf("ServeAPIVersionsV3() error = %v, want %v", err, wantErr)
+	}
+}
+
+type errorListener struct {
+	err error
+}
+
+func (l *errorListener) Accept() (net.Conn, error) { return nil, l.err }
+func (*errorListener) Close() error                { return nil }
+func (*errorListener) Addr() net.Addr              { return listenerAddr{} }
+
+type listenerAddr struct{}
+
+func (listenerAddr) Network() string { return "test" }
+func (listenerAddr) String() string  { return "test" }
+
+func TestServeAPIVersionsV3ReturnsCleanlyWhenListenerIsClosed(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("net.Listen() error = %v", err)
+	}
+	if err := listener.Close(); err != nil {
+		t.Fatalf("listener.Close() error = %v", err)
+	}
+	if err := ServeAPIVersionsV3(listener, 1024, nil); err != nil {
+		t.Errorf("ServeAPIVersionsV3() error = %v, want nil", err)
+	}
+}
