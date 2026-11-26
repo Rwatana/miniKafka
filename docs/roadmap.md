@@ -123,3 +123,4 @@ being described as behavior from the Node reference.
 | 66 | `storage.CloseKafkaPartitionLog` | Release one Kafka binary partition log's file handle. |
 | 67 | `broker.Broker.AppendKafkaRecordBatch` | Own, recover, serialize, and append validated Kafka batches by topic partition. |
 | 68 | `kafka.HandleProduceRequestV3` | Validate, append, and answer non-transactional Produce v3 requests. |
+| 69 | `kafka.HandleKafkaRequest` | Route Produce v3 frames to the handler and supply an optional batch appender. |
