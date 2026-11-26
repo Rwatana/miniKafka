@@ -9,18 +9,18 @@ func TestEncodeAPIVersionsResponseV3(t *testing.T) {
 	tests := []struct {
 		name        string
 		errorCode   int16
-		apiVersions []apiVersionRange
+		apiVersions []APIVersionRange
 		want        []byte
 	}{
 		{
 			name: "multiple API ranges",
-			apiVersions: []apiVersionRange{
-				{apiKey: 18, minVersion: 0, maxVersion: 5},
-				{apiKey: 0, minVersion: 1, maxVersion: 4},
+			apiVersions: []APIVersionRange{
+				{APIKey: 18, MinVersion: 0, MaxVersion: 5},
+				{APIKey: 0, MinVersion: 1, MaxVersion: 4},
 			},
 			want: []byte{0, 0, 3, 0, 18, 0, 0, 0, 5, 0, 0, 0, 1, 0, 4, 0, 0, 0, 0, 0},
 		},
-		{name: "empty API list with error", errorCode: -1, apiVersions: []apiVersionRange{}, want: []byte{0xff, 0xff, 1, 0, 0, 0, 0, 0}},
+		{name: "empty API list with error", errorCode: -1, apiVersions: []APIVersionRange{}, want: []byte{0xff, 0xff, 1, 0, 0, 0, 0, 0}},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -33,7 +33,7 @@ func TestEncodeAPIVersionsResponseV3(t *testing.T) {
 }
 
 func TestEncodeAPIVersionsResponseFrameV3(t *testing.T) {
-	apiVersions := []apiVersionRange{{apiKey: 18, minVersion: 0, maxVersion: 3}}
+	apiVersions := []APIVersionRange{{APIKey: 18, MinVersion: 0, MaxVersion: 3}}
 	want := []byte{0, 0, 0, 18, 1, 2, 3, 4, 0, 0, 2, 0, 18, 0, 0, 0, 3, 0, 0, 0, 0, 0}
 	got, err := encodeAPIVersionsResponseFrameV3(0x01020304, 0, apiVersions, 18)
 	if err != nil {
