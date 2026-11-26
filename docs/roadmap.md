@@ -139,3 +139,4 @@ being described as behavior from the Node reference.
 | 82 | `main` | Advertise Fetch v4 and wire the broker's binary log reader into the live TCP listener. |
 | 83 | `kafka.HandleFetchRequestV4` | Return OFFSET_OUT_OF_RANGE when a client fetches beyond a partition's high watermark. |
 | 84 | `broker.Broker.ReadKafkaRecordBatches` | Distinguish a missing topic-partition from an existing empty binary log. |
+| 85 | `kafka.HandleFetchRequestV4` | Map the broker's typed missing-partition error to Kafka UNKNOWN_TOPIC_OR_PARTITION. |
