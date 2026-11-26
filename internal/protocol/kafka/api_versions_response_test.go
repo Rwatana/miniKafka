@@ -31,3 +31,18 @@ func TestEncodeAPIVersionsResponseV3(t *testing.T) {
 		})
 	}
 }
+
+func TestEncodeAPIVersionsResponseFrameV3(t *testing.T) {
+	apiVersions := []apiVersionRange{{apiKey: 18, minVersion: 0, maxVersion: 3}}
+	want := []byte{0, 0, 0, 18, 1, 2, 3, 4, 0, 0, 2, 0, 18, 0, 0, 0, 3, 0, 0, 0, 0, 0}
+	got, err := encodeAPIVersionsResponseFrameV3(0x01020304, 0, apiVersions, 18)
+	if err != nil {
+		t.Fatalf("encodeAPIVersionsResponseFrameV3() error = %v", err)
+	}
+	if !bytes.Equal(got, want) {
+		t.Errorf("response frame = %x, want %x", got, want)
+	}
+	if _, err := encodeAPIVersionsResponseFrameV3(0x01020304, 0, apiVersions, 17); err == nil {
+		t.Error("encodeAPIVersionsResponseFrameV3(max=17) error = nil, want oversized-frame error")
+	}
+}

@@ -94,3 +94,4 @@ being described as behavior from the Node reference.
 | 37 | `kafka.decodeCompactString` | Decode a required compact UTF-8 string while rejecting the null sentinel. |
 | 38 | `kafka.decodeAPIVersionsRequestV3` | Parse ApiVersions v3 client identity fields and its flexible tagged-fields section. |
 | 39 | `kafka.encodeAPIVersionsResponseV3` | Encode the flexible ApiVersions v3 response body and supported API version ranges. |
+| 40 | `kafka.encodeAPIVersionsResponseFrameV3` | Assemble the v0 response header, ApiVersions v3 body, and bounded outer frame. |
