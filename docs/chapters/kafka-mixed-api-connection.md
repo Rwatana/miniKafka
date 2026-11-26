@@ -11,13 +11,17 @@ correlation ID so the client can match it to the outstanding request.
 `ServeKafkaConnection` reads one bounded frame at a time, calls
 `HandleKafkaRequest`, and writes the complete response before reading the next
 frame. It handles partial writes and treats a clean EOF between frames as a
-normal connection close.
+normal connection close. For each Metadata request it calls a metadata
+provider, so a long-lived connection can see newly created topics. It does not
+call that provider for ApiVersions requests.
 
 ## Tests
 
 An in-memory TCP pair exchanges ApiVersions v3 and Metadata v0 requests on the
-same connection. Other cases cover truncated frames, unsupported APIs, write
-errors, zero-byte writes, and partial writes.
+same connection. Repeated Metadata requests observe changed topic state, while
+ApiVersions skips metadata loading. Other cases cover truncated frames,
+unsupported APIs, provider errors, write errors, zero-byte writes, and partial
+writes.
 
 ## Deliberate limits
 
