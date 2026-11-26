@@ -68,6 +68,7 @@ func TestMain(t *testing.T) {
 		originalExit := exitProcess
 		exitCode := 0
 		var kafkaListener *appTestListener
+		serveKafkaDone := make(chan struct{})
 		prepareDatabase = func(_ context.Context, dsn string) (*sql.DB, error) {
 			if dsn != "postgres://postgres:postgres@localhost:5432/minikafka" {
 				t.Errorf("database URL = %q, want reference default", dsn)
@@ -114,6 +115,7 @@ func TestMain(t *testing.T) {
 			return kafkaListener, nil
 		}
 		serveKafka = func(_ net.Listener, maxFrameBytes int32, supported []kafkaprotocol.APIVersionRange, metadataProvider kafkaprotocol.MetadataProvider, appendBatch kafkaprotocol.KafkaBatchAppender, readBatches kafkaprotocol.KafkaBatchReader) error {
+			defer close(serveKafkaDone)
 			if maxFrameBytes != 100*1024*1024 {
 				t.Errorf("Kafka max frame size = %d, want 100 MiB", maxFrameBytes)
 			}
@@ -153,6 +155,11 @@ func TestMain(t *testing.T) {
 		}()
 
 		main()
+		select {
+		case <-serveKafkaDone:
+		default:
+			t.Error("main returned before Kafka listener stopped")
+		}
 		if exitCode != 0 {
 			t.Errorf("exit code = %d, want 0", exitCode)
 		}
