@@ -6,7 +6,20 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"unicode/utf8"
 )
+
+// RequestHeader contains the fields shared by Kafka requests before the API body.
+type RequestHeader struct {
+	// APIKey identifies the Kafka API requested by the client.
+	APIKey int16
+	// APIVersion selects the schema for the requested API.
+	APIVersion int16
+	// CorrelationID lets the client match a response to this request.
+	CorrelationID int32
+	// ClientID is the optional client identifier sent in the request header.
+	ClientID *string
+}
 
 // ReadRequestFrame reads one size-delimited Kafka request body from reader.
 func ReadRequestFrame(reader io.Reader, maxFrameBytes int32) ([]byte, error) {
@@ -42,4 +55,39 @@ func ReadRequestFrame(reader io.Reader, maxFrameBytes int32) ([]byte, error) {
 		return nil, fmt.Errorf("read Kafka request body: %w", err)
 	}
 	return frame, nil
+}
+
+// DecodeRequestHeaderV1 decodes a Kafka request header v1 and returns its body.
+func DecodeRequestHeaderV1(frame []byte) (RequestHeader, []byte, error) {
+	if len(frame) < 8 {
+		return RequestHeader{}, nil, fmt.Errorf("decode Kafka request header v1: fixed header is %d bytes, want at least 8", len(frame))
+	}
+	header := RequestHeader{
+		APIKey:        int16(binary.BigEndian.Uint16(frame[0:2])),
+		APIVersion:    int16(binary.BigEndian.Uint16(frame[2:4])),
+		CorrelationID: int32(binary.BigEndian.Uint32(frame[4:8])),
+	}
+	if len(frame) < 10 {
+		return RequestHeader{}, nil, errors.New("decode Kafka request header v1: missing client ID length")
+	}
+
+	clientIDLength := int16(binary.BigEndian.Uint16(frame[8:10]))
+	bodyStart := 10
+	if clientIDLength < -1 {
+		return RequestHeader{}, nil, fmt.Errorf("decode Kafka request header v1: invalid client ID length %d", clientIDLength)
+	}
+	if clientIDLength >= 0 {
+		clientEnd := bodyStart + int(clientIDLength)
+		if clientEnd > len(frame) {
+			return RequestHeader{}, nil, fmt.Errorf("decode Kafka request header v1: client ID length %d exceeds remaining bytes %d", clientIDLength, len(frame)-bodyStart)
+		}
+		clientIDBytes := frame[bodyStart:clientEnd]
+		if !utf8.Valid(clientIDBytes) {
+			return RequestHeader{}, nil, errors.New("decode Kafka request header v1: client ID is not valid UTF-8")
+		}
+		clientID := string(clientIDBytes)
+		header.ClientID = &clientID
+		bodyStart = clientEnd
+	}
+	return header, frame[bodyStart:], nil
 }
