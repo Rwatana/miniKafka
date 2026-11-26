@@ -17,6 +17,24 @@ func TestHandleKafkaRequestDispatchesMetadataV0(t *testing.T) {
 	}
 }
 
+func TestHandleKafkaRequestDispatchesMetadataV1(t *testing.T) {
+	request := metadataRequestFrameV0(3, 1, 23, []byte{0xff, 0xff, 0xff, 0xff})
+	response, err := HandleKafkaRequest(request, 1024, nil, nil, nil)
+	if err != nil {
+		t.Fatalf("HandleKafkaRequest(Metadata v1) error = %v", err)
+	}
+	want := []byte{0, 0, 0, 16, 0, 0, 0, 23, 0, 0, 0, 0, 0xff, 0xff, 0xff, 0xff, 0, 0, 0, 0}
+	if !bytes.Equal(response, want) {
+		t.Errorf("Metadata v1 response = %x, want %x", response, want)
+	}
+
+	for _, frame := range [][]byte{{0, 3}, metadataRequestFrameV0(3, 2, 23, []byte{0, 0, 0, 0})} {
+		if _, err := HandleKafkaRequest(frame, 1024, nil, nil, nil); err == nil {
+			t.Errorf("HandleKafkaRequest(Metadata %x) error = nil, want error", frame)
+		}
+	}
+}
+
 func TestHandleKafkaRequestDispatchesAPIVersionsV3(t *testing.T) {
 	request := []byte{0, 18, 0, 3, 0, 0, 0, 8, 1, 0, 2, 'n', 2, '1', 0}
 	supported := []APIVersionRange{{APIKey: 18, MinVersion: 0, MaxVersion: 3}}

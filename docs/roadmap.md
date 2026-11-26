@@ -149,3 +149,4 @@ being described as behavior from the Node reference.
 | 92 | `kafka.decodeMetadataRequestV0` | Treat a null topic array as a request for all Metadata topics. |
 | 93 | `kafka.encodeMetadataResponseV1` | Encode the v1 controller, broker rack, and topic visibility fields. |
 | 94 | `kafka.HandleMetadataRequestV1` | Serve the v1 nullable topic query and single-broker controller metadata. |
+| 95 | `kafka.HandleKafkaRequest` | Route Metadata v0/v1 by schema version and reject unsupported versions. |
