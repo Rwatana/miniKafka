@@ -112,11 +112,11 @@ func TestMain(t *testing.T) {
 			kafkaListener = &appTestListener{}
 			return kafkaListener, nil
 		}
-		serveKafka = func(_ net.Listener, maxFrameBytes int32, supported []kafkaprotocol.APIVersionRange, metadataProvider kafkaprotocol.MetadataProvider, _ ...kafkaprotocol.KafkaBatchAppender) error {
+		serveKafka = func(_ net.Listener, maxFrameBytes int32, supported []kafkaprotocol.APIVersionRange, metadataProvider kafkaprotocol.MetadataProvider, produceAppenders ...kafkaprotocol.KafkaBatchAppender) error {
 			if maxFrameBytes != 100*1024*1024 {
 				t.Errorf("Kafka max frame size = %d, want 100 MiB", maxFrameBytes)
 			}
-			wantSupported := []kafkaprotocol.APIVersionRange{{APIKey: 3, MinVersion: 0, MaxVersion: 0}, {APIKey: 18, MinVersion: 0, MaxVersion: 3}}
+			wantSupported := []kafkaprotocol.APIVersionRange{{APIKey: 0, MinVersion: 3, MaxVersion: 3}, {APIKey: 3, MinVersion: 0, MaxVersion: 0}, {APIKey: 18, MinVersion: 0, MaxVersion: 3}}
 			if !reflect.DeepEqual(supported, wantSupported) {
 				t.Errorf("supported Kafka APIs = %+v, want %+v", supported, wantSupported)
 			}
@@ -131,6 +131,9 @@ func TestMain(t *testing.T) {
 				if !reflect.DeepEqual(brokers, wantBroker) {
 					t.Errorf("metadata brokers = %+v, want %+v", brokers, wantBroker)
 				}
+			}
+			if len(produceAppenders) != 1 || produceAppenders[0] == nil {
+				t.Errorf("Produce appenders = %d, want one broker callback", len(produceAppenders))
 			}
 			return nil
 		}
