@@ -127,3 +127,4 @@ being described as behavior from the Node reference.
 | 70 | `kafka.ServeKafkaConnection` | Pass the Produce appender through persistent mixed-API connections. |
 | 71 | `kafka.ServeKafka` | Forward the Produce appender to each accepted Kafka client connection. |
 | 72 | `main` | Advertise Produce v3 and pass the broker-backed appender into the listener. |
+| 73 | `kafka.decodeFetchRequestV4` | Decode Fetch v4 limits, isolation level, topics, partitions, and offsets. |
