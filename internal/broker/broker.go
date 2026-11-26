@@ -301,11 +301,21 @@ func (broker *Broker) ListPartitions() ([]PartitionInfo, error) {
 	}
 
 	partitions := make([]PartitionInfo, 0)
+	seenPartitions := make(map[partitionKey]struct{})
 	for _, entry := range entries {
-		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".log") {
+		if entry.IsDir() {
 			continue
 		}
-		stem := strings.TrimSuffix(entry.Name(), ".log")
+		filename := entry.Name()
+		var stem string
+		switch {
+		case strings.HasSuffix(filename, ".kafka.log"):
+			stem = strings.TrimSuffix(filename, ".kafka.log")
+		case strings.HasSuffix(filename, ".log"):
+			stem = strings.TrimSuffix(filename, ".log")
+		default:
+			continue
+		}
 		separator := strings.LastIndex(stem, "__")
 		if separator <= 0 {
 			continue
@@ -314,7 +324,13 @@ func (broker *Broker) ListPartitions() ([]PartitionInfo, error) {
 		if err != nil || partition < 0 {
 			continue
 		}
-		partitions = append(partitions, PartitionInfo{Topic: stem[:separator], Partition: partition})
+		info := PartitionInfo{Topic: stem[:separator], Partition: partition}
+		identity := partitionKey{topic: info.Topic, partition: info.Partition}
+		if _, exists := seenPartitions[identity]; exists {
+			continue
+		}
+		seenPartitions[identity] = struct{}{}
+		partitions = append(partitions, info)
 	}
 	return partitions, nil
 }
