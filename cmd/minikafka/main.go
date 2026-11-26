@@ -4,16 +4,20 @@ import (
 	"context"
 	"errors"
 	"log"
+	"net"
 	"net/http"
 	"os"
 
 	httpadapter "github.com/Rwatana/miniKafka/internal/adapter/http"
 	"github.com/Rwatana/miniKafka/internal/broker"
 	"github.com/Rwatana/miniKafka/internal/infrastructure/postgres"
+	kafkaprotocol "github.com/Rwatana/miniKafka/internal/protocol/kafka"
 )
 
 var prepareDatabase = postgres.PrepareDatabase
 var listenAndServe = (*http.Server).ListenAndServe
+var listenKafka = net.Listen
+var serveKafka = kafkaprotocol.ServeAPIVersionsV3
 var exitProcess = os.Exit
 
 func main() {
@@ -29,6 +33,10 @@ func main() {
 	if port == "" {
 		port = "5000"
 	}
+	kafkaAddress := os.Getenv("KAFKA_LISTEN_ADDR")
+	if kafkaAddress == "" {
+		kafkaAddress = ":9092"
+	}
 
 	database, err := prepareDatabase(context.Background(), databaseURL)
 	if err != nil {
@@ -37,6 +45,19 @@ func main() {
 		return
 	}
 	defer database.Close()
+
+	kafkaListener, err := listenKafka("tcp", kafkaAddress)
+	if err != nil {
+		log.Printf("listen for Kafka clients on %s: %v", kafkaAddress, err)
+		exitProcess(1)
+		return
+	}
+	defer kafkaListener.Close()
+	go func() {
+		if err := serveKafka(kafkaListener, 100*1024*1024, []kafkaprotocol.APIVersionRange{{APIKey: 18, MinVersion: 0, MaxVersion: 3}}); err != nil {
+			log.Printf("serve Kafka clients: %v", err)
+		}
+	}()
 
 	brokerInstance := &broker.Broker{DataDir: dataDir}
 	defer brokerInstance.Close()
@@ -59,7 +80,7 @@ func main() {
 		httpadapter.DashboardHandler{},
 	)
 	server := &http.Server{Addr: ":" + port, Handler: router}
-	log.Printf("MiniKafka broker listening on port %s", port)
+	log.Printf("MiniKafka HTTP API listening on port %s and Kafka protocol on %s", port, kafkaAddress)
 	if err := listenAndServe(server); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Printf("serve MiniKafka broker: %v", err)
 		_ = brokerInstance.Close()
