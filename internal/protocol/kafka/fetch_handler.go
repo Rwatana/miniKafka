@@ -1,6 +1,11 @@
 package kafka
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+
+	"github.com/Rwatana/miniKafka/internal/kafkaerr"
+)
 
 var encodeFetchHandlerResponseBody = encodeFetchResponseV4
 
@@ -34,6 +39,9 @@ func HandleFetchRequestV4(requestFrame []byte, maxFrameBytes int32, readBatches 
 			records, highWatermark, err := readBatches(topic.Name, int(partition.Index), partition.FetchOffset, partition.PartitionMaxBytes)
 			if err != nil {
 				partitionResponse.ErrorCode = -1
+				if errors.Is(err, kafkaerr.ErrUnknownTopicOrPartition) {
+					partitionResponse.ErrorCode = 3
+				}
 				partitionResponse.HighWatermark = -1
 				partitionResponse.LastStableOffset = -1
 			} else if partition.FetchOffset > highWatermark {

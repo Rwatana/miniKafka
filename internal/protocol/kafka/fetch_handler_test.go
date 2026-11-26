@@ -6,6 +6,8 @@ import (
 	"errors"
 	"reflect"
 	"testing"
+
+	"github.com/Rwatana/miniKafka/internal/kafkaerr"
 )
 
 func TestHandleFetchRequestV4ReadsBatchesAndFramesResponse(t *testing.T) {
@@ -56,7 +58,8 @@ func TestHandleFetchRequestV4ReadsBatchesAndFramesResponse(t *testing.T) {
 
 func TestHandleFetchRequestV4MapsPartitionReadErrors(t *testing.T) {
 	body := fetchRequestV4BodyForTest(fetchRequestV4{Topics: []fetchTopicRequestV4{{Name: "orders", Partitions: []fetchPartitionRequestV4{{Index: 1}}}}})
-	response, err := HandleFetchRequestV4(fetchRequestFrameV4ForTest(body), 1024, func(string, int, int64, int32) ([]byte, int64, error) {
+	request := fetchRequestFrameV4ForTest(body)
+	response, err := HandleFetchRequestV4(request, 1024, func(string, int, int64, int32) ([]byte, int64, error) {
 		return nil, 0, errors.New("disk read failed")
 	})
 	if err != nil {
@@ -73,6 +76,26 @@ func TestHandleFetchRequestV4MapsPartitionReadErrors(t *testing.T) {
 	if !bytes.Equal(response, want) {
 		t.Errorf("read-error Fetch response = %x, want %x", response, want)
 	}
+
+	t.Run("unknown topic or partition maps to Kafka code 3", func(t *testing.T) {
+		response, err := HandleFetchRequestV4(request, 1024, func(string, int, int64, int32) ([]byte, int64, error) {
+			return nil, 0, kafkaerr.ErrUnknownTopicOrPartition
+		})
+		if err != nil {
+			t.Fatalf("HandleFetchRequestV4() error = %v", err)
+		}
+		wantBody, err := encodeFetchResponseV4(fetchResponseV4{Topics: []fetchTopicResponseV4{{Name: "orders", Partitions: []fetchPartitionResponseV4{{Index: 1, ErrorCode: 3, HighWatermark: -1, LastStableOffset: -1}}}}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		want, err := encodeResponseFrame(append(encodeResponseHeaderV0(42), wantBody...), 1024)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Equal(response, want) {
+			t.Errorf("unknown-partition Fetch response = %x, want %x", response, want)
+		}
+	})
 }
 
 func TestHandleFetchRequestV4ReportsOffsetsBeyondHighWatermark(t *testing.T) {
