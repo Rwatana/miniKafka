@@ -163,3 +163,4 @@ being described as behavior from the Node reference.
 | 106 | `kafka.encodeFetchResponseV2` | Encode the v2 Fetch response and its nullable record sets. |
 | 107 | `kafka.HandleFetchRequestV2` | Read batches and return a version 2 Fetch response. |
 | 108 | `kafka.HandleKafkaRequestWithFetchReader` | Route Fetch v2 frames to their versioned handler. |
+| 109 | `kafka.TestKafkaGoClientProducesAndFetchesThroughKafka` | Validate the live Produce, Metadata, ListOffsets, and Fetch path with kafka-go. |
