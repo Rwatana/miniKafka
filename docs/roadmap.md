@@ -99,3 +99,4 @@ being described as behavior from the Node reference.
 | 42 | `kafka.ServeAPIVersionsV3Connection` | Process ordered, size-delimited ApiVersions requests until the connection reaches EOF. |
 | 43 | `kafka.ServeAPIVersionsV3` | Accept TCP clients and run the ApiVersions v3 connection loop for each client. |
 | 44 | `main` | Open the Kafka protocol listener alongside the existing HTTP application and expose port 9092 in Compose. |
+| 45 | `kafka.decodeMetadataRequestV0` | Decode Metadata v0's legacy topic array and UTF-8 STRING fields. |
