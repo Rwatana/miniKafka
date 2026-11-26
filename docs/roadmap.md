@@ -158,3 +158,4 @@ being described as behavior from the Node reference.
 | 101 | `kafka.HandleKafkaRequestWithFetchReader` | Route ListOffsets v1 frames through the broker-aware dispatcher. |
 | 102 | `kafka.ServeKafkaConnectionWithFetchReader` | Pass the offset lookup callback through persistent Kafka connections. |
 | 103 | `kafka.ServeKafkaWithFetchReader` | Pass the offset lookup callback through the TCP accept loop. |
+| 104 | `main` | Advertise ListOffsets v1 and connect it to the broker's timestamp index. |

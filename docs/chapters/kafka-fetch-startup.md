@@ -8,19 +8,19 @@ actually handle, and the handler must reach the broker's partition storage.
 
 ## Go design
 
-`main` advertises Fetch v4 and starts `ServeKafkaWithFetchReader`. It supplies
-the broker's Kafka batch append and read methods, so Produce and Fetch operate
-on the same durable partition logs. When the HTTP server exits, startup closes
-the Kafka listener and waits for its accept loop to stop before returning.
+`main` advertises Fetch v4 and ListOffsets v1 and starts
+`ServeKafkaWithFetchReader`. It supplies the broker's Kafka batch append, read,
+and timestamp lookup methods, so Produce, Fetch, and ListOffsets operate on the
+same durable partition logs. When the HTTP server exits, startup closes the
+Kafka listener and waits for its accept loop to stop before returning.
 
 ## Tests
 
-Startup tests verify the advertised Fetch range and invoke the read callback
-for a missing partition to confirm that the live broker callback is present
-and returns an empty result without creating a log.
+Startup tests verify the advertised Fetch and ListOffsets ranges and invoke
+both callbacks for a missing partition to confirm that the live broker methods
+are connected and return a typed missing-partition error.
 
 ## Deliberate limits
 
-The listener advertises Fetch v4, but Kafka compatibility is still partial.
-Transactions, compression, long polling, full byte budgeting, offsets and
-metadata errors, groups, and replication remain unimplemented.
+The listener advertises a limited Kafka API subset. Transactions, compression,
+several consumer APIs, groups, and replication remain unimplemented.

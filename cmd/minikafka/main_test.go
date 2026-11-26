@@ -114,12 +114,12 @@ func TestMain(t *testing.T) {
 			kafkaListener = &appTestListener{}
 			return kafkaListener, nil
 		}
-		serveKafka = func(_ net.Listener, maxFrameBytes int32, supported []kafkaprotocol.APIVersionRange, metadataProvider kafkaprotocol.MetadataProvider, appendBatch kafkaprotocol.KafkaBatchAppender, readBatches kafkaprotocol.KafkaBatchReader, _ ...kafkaprotocol.KafkaOffsetLookup) error {
+		serveKafka = func(_ net.Listener, maxFrameBytes int32, supported []kafkaprotocol.APIVersionRange, metadataProvider kafkaprotocol.MetadataProvider, appendBatch kafkaprotocol.KafkaBatchAppender, readBatches kafkaprotocol.KafkaBatchReader, offsetLookups ...kafkaprotocol.KafkaOffsetLookup) error {
 			defer close(serveKafkaDone)
 			if maxFrameBytes != 100*1024*1024 {
 				t.Errorf("Kafka max frame size = %d, want 100 MiB", maxFrameBytes)
 			}
-			wantSupported := []kafkaprotocol.APIVersionRange{{APIKey: 0, MinVersion: 3, MaxVersion: 3}, {APIKey: 1, MinVersion: 4, MaxVersion: 4}, {APIKey: 3, MinVersion: 0, MaxVersion: 1}, {APIKey: 18, MinVersion: 0, MaxVersion: 3}}
+			wantSupported := []kafkaprotocol.APIVersionRange{{APIKey: 0, MinVersion: 3, MaxVersion: 3}, {APIKey: 1, MinVersion: 4, MaxVersion: 4}, {APIKey: 2, MinVersion: 1, MaxVersion: 1}, {APIKey: 3, MinVersion: 0, MaxVersion: 1}, {APIKey: 18, MinVersion: 0, MaxVersion: 3}}
 			if !reflect.DeepEqual(supported, wantSupported) {
 				t.Errorf("supported Kafka APIs = %+v, want %+v", supported, wantSupported)
 			}
@@ -142,6 +142,11 @@ func TestMain(t *testing.T) {
 				t.Error("Fetch reader = nil, want broker callback")
 			} else if records, highWatermark, err := readBatches("missing", 0, 0, 1024); !errors.Is(err, kafkaerr.ErrUnknownTopicOrPartition) || records != nil || highWatermark != 0 {
 				t.Errorf("missing Fetch read = (%x, %d, %v), want (nil, 0, unknown topic/partition)", records, highWatermark, err)
+			}
+			if len(offsetLookups) != 1 || offsetLookups[0] == nil {
+				t.Errorf("Kafka offset lookups = %d, want one broker callback", len(offsetLookups))
+			} else if _, _, err := offsetLookups[0]("missing", 0, -2); !errors.Is(err, kafkaerr.ErrUnknownTopicOrPartition) {
+				t.Errorf("missing Kafka offset lookup error = %v, want unknown topic/partition", err)
 			}
 			return nil
 		}
