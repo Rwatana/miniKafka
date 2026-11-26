@@ -2,8 +2,11 @@ package kafka
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"unicode/utf8"
+
+	"github.com/Rwatana/miniKafka/internal/kafkaerr"
 )
 
 type listOffsetsRequestV1 struct {
@@ -20,6 +23,11 @@ type listOffsetsPartitionV1 struct {
 	Index     int32
 	Timestamp int64
 }
+
+// KafkaOffsetLookup resolves a partition's offset and record timestamp for a Kafka timestamp query.
+type KafkaOffsetLookup func(topic string, partition int, timestamp int64) (offset int64, recordTimestamp int64, err error)
+
+var encodeListOffsetsHandlerResponseBody = encodeListOffsetsResponseV1
 
 // decodeListOffsetsRequestV1 decodes the legacy ListOffsets v1 request body.
 func decodeListOffsetsRequestV1(body []byte) (listOffsetsRequestV1, error) {
@@ -83,4 +91,54 @@ func decodeListOffsetsRequestV1(body []byte) (listOffsetsRequestV1, error) {
 		return listOffsetsRequestV1{}, fmt.Errorf("decode ListOffsets v1 request: %d trailing bytes", len(body)-cursor)
 	}
 	return request, nil
+}
+
+// HandleListOffsetsRequestV1 resolves and frames one Kafka ListOffsets v1 request.
+func HandleListOffsetsRequestV1(requestFrame []byte, maxFrameBytes int32, lookup KafkaOffsetLookup) ([]byte, error) {
+	header, body, err := DecodeRequestHeaderV1(requestFrame)
+	if err != nil {
+		return nil, fmt.Errorf("handle ListOffsets v1 request header: %w", err)
+	}
+	if header.APIKey != 2 {
+		return nil, fmt.Errorf("handle ListOffsets v1 request: API key %d, want 2", header.APIKey)
+	}
+	if header.APIVersion != 1 {
+		return nil, fmt.Errorf("handle ListOffsets v1 request: API version %d, want 1", header.APIVersion)
+	}
+	if lookup == nil {
+		return nil, fmt.Errorf("handle ListOffsets v1 request: nil offset lookup")
+	}
+	request, err := decodeListOffsetsRequestV1(body)
+	if err != nil {
+		return nil, fmt.Errorf("handle ListOffsets v1 request body: %w", err)
+	}
+	responseTopics := make([]listOffsetsTopicResponseV1, 0, len(request.Topics))
+	for _, topic := range request.Topics {
+		topicResponse := listOffsetsTopicResponseV1{Name: topic.Name, Partitions: make([]listOffsetsPartitionResponseV1, 0, len(topic.Partitions))}
+		for _, partition := range topic.Partitions {
+			partitionResponse := listOffsetsPartitionResponseV1{Index: partition.Index, Timestamp: -1, Offset: -1}
+			offset, timestamp, err := lookup(topic.Name, int(partition.Index), partition.Timestamp)
+			if err != nil {
+				partitionResponse.ErrorCode = -1
+				if errors.Is(err, kafkaerr.ErrUnknownTopicOrPartition) {
+					partitionResponse.ErrorCode = 3
+				}
+			} else {
+				partitionResponse.Timestamp = timestamp
+				partitionResponse.Offset = offset
+			}
+			topicResponse.Partitions = append(topicResponse.Partitions, partitionResponse)
+		}
+		responseTopics = append(responseTopics, topicResponse)
+	}
+	responseBody, err := encodeListOffsetsHandlerResponseBody(responseTopics)
+	if err != nil {
+		return nil, fmt.Errorf("handle ListOffsets v1 response body: %w", err)
+	}
+	frameBody := append(encodeResponseHeaderV0(header.CorrelationID), responseBody...)
+	frame, err := encodeResponseFrame(frameBody, maxFrameBytes)
+	if err != nil {
+		return nil, fmt.Errorf("handle ListOffsets v1 response frame: %w", err)
+	}
+	return frame, nil
 }
