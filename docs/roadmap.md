@@ -112,3 +112,4 @@ being described as behavior from the Node reference.
 | 55 | `kafka.decodeSignedVarint` | Decode Kafka record fields' signed zig-zag VARINT values. |
 | 56 | `kafka.decodeUnsignedVarlong` | Decode bounded ten-byte uint64 base-128 values used by signed Kafka VARLONG fields. |
 | 57 | `kafka.decodeSignedVarlong` | Decode Kafka record fields' signed zig-zag VARLONG values. |
+| 58 | `kafka.decodeRecordV2` | Parse one magic-v2 record's deltas, nullable key/value, and headers. |
