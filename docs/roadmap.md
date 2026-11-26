@@ -129,3 +129,4 @@ being described as behavior from the Node reference.
 | 72 | `main` | Advertise Produce v3 and pass the broker-backed appender into the listener. |
 | 73 | `kafka.decodeFetchRequestV4` | Decode Fetch v4 limits, isolation level, topics, partitions, and offsets. |
 | 74 | `kafka.encodeFetchResponseV4` | Encode Fetch v4 partition watermarks, nullable transactions, and record bytes. |
+| 75 | `storage.ReadKafkaRecordBatches` | Read whole batches from a requested offset and report the partition high watermark. |

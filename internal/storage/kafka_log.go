@@ -11,6 +11,7 @@ import (
 )
 
 var copyKafkaBatchChecksum = io.CopyN
+var readKafkaPartitionAt = func(file *os.File, data []byte, offset int64) (int, error) { return file.ReadAt(data, offset) }
 var writeKafkaBatch = func(file *os.File, batch []byte) (int, error) { return file.Write(batch) }
 var syncKafkaPartitionLog = func(file *os.File) error { return file.Sync() }
 
@@ -148,4 +149,77 @@ func CloseKafkaPartitionLog(log *KafkaPartitionLog) error {
 		return fmt.Errorf("close Kafka partition log: %w", err)
 	}
 	return nil
+}
+
+// ReadKafkaRecordBatches returns complete batches at or after an offset and the log high watermark.
+func ReadKafkaRecordBatches(log *KafkaPartitionLog, fetchOffset int64, maxBytes int32) ([]byte, int64, error) {
+	if log == nil || log.file == nil {
+		return nil, 0, fmt.Errorf("read Kafka partition log: nil log")
+	}
+	if fetchOffset < 0 || maxBytes < 0 {
+		return nil, 0, fmt.Errorf("read Kafka partition log: fetch offset and maximum bytes must be non-negative")
+	}
+	info, err := log.file.Stat()
+	if err != nil {
+		return nil, 0, fmt.Errorf("stat Kafka partition log before read: %w", err)
+	}
+	fileSize := info.Size()
+	var position int64
+	var highWatermark int64
+	var records []byte
+	limitReached := false
+	for position < fileSize {
+		remaining := fileSize - position
+		if remaining < 61 {
+			return nil, 0, fmt.Errorf("read Kafka partition log: truncated batch header at byte %d", position)
+		}
+		var header [61]byte
+		if _, err := readKafkaPartitionAt(log.file, header[:], position); err != nil {
+			return nil, 0, fmt.Errorf("read Kafka batch header at byte %d: %w", position, err)
+		}
+		batchLength := int32(binary.BigEndian.Uint32(header[8:12]))
+		if batchLength < 49 {
+			return nil, 0, fmt.Errorf("read Kafka partition log: invalid batch length %d at byte %d", batchLength, position)
+		}
+		encodedLength := int64(batchLength) + 12
+		if encodedLength > remaining {
+			return nil, 0, fmt.Errorf("read Kafka partition log: batch at byte %d declares %d bytes, only %d remain", position, encodedLength, remaining)
+		}
+		if header[16] != 2 {
+			return nil, 0, fmt.Errorf("read Kafka partition log: unsupported magic %d at byte %d", header[16], position)
+		}
+		checksum := crc32.New(crc32.MakeTable(crc32.Castagnoli))
+		if _, err := copyKafkaBatchChecksum(checksum, io.NewSectionReader(log.file, position+21, encodedLength-21), encodedLength-21); err != nil {
+			return nil, 0, fmt.Errorf("read Kafka batch checksum input at byte %d: %w", position, err)
+		}
+		if checksum.Sum32() != binary.BigEndian.Uint32(header[17:21]) {
+			return nil, 0, fmt.Errorf("read Kafka partition log: CRC32C mismatch at byte %d", position)
+		}
+		baseOffset := int64(binary.BigEndian.Uint64(header[0:8]))
+		lastOffsetDelta := int32(binary.BigEndian.Uint32(header[23:27]))
+		recordsCount := int32(binary.BigEndian.Uint32(header[57:61]))
+		if baseOffset < 0 || lastOffsetDelta < 0 || recordsCount < 0 {
+			return nil, 0, fmt.Errorf("read Kafka partition log: invalid offset or record count at byte %d", position)
+		}
+		if baseOffset > math.MaxInt64-int64(lastOffsetDelta)-1 {
+			return nil, 0, fmt.Errorf("read Kafka partition log: offset overflow at byte %d", position)
+		}
+		batchHighWatermark := baseOffset + int64(lastOffsetDelta) + 1
+		if batchHighWatermark > highWatermark {
+			highWatermark = batchHighWatermark
+		}
+		if !limitReached && baseOffset+int64(lastOffsetDelta) >= fetchOffset {
+			if len(records) > 0 && int64(len(records))+encodedLength > int64(maxBytes) {
+				limitReached = true
+			} else {
+				batch := make([]byte, int(encodedLength))
+				if _, err := readKafkaPartitionAt(log.file, batch, position); err != nil {
+					return nil, 0, fmt.Errorf("read Kafka batch at byte %d: %w", position, err)
+				}
+				records = append(records, batch...)
+			}
+		}
+		position += encodedLength
+	}
+	return records, highWatermark, nil
 }

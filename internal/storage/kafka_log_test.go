@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"bytes"
 	"encoding/binary"
 	"errors"
 	"hash/crc32"
@@ -332,6 +333,155 @@ func TestCloseKafkaPartitionLog(t *testing.T) {
 	if err := CloseKafkaPartitionLog(&KafkaPartitionLog{}); err == nil {
 		t.Error("CloseKafkaPartitionLog(missing file) error = nil, want nil-file error")
 	}
+}
+
+func TestReadKafkaRecordBatches(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "partition.log")
+	first := kafkaBatchForTest(0, 1, 2)
+	second := kafkaBatchForTest(2, 0, 1)
+	if err := os.WriteFile(path, append(first, second...), 0o600); err != nil {
+		t.Fatalf("write batches: %v", err)
+	}
+	log, err := OpenKafkaPartitionLog(path)
+	if err != nil {
+		t.Fatalf("OpenKafkaPartitionLog() error = %v", err)
+	}
+	defer log.file.Close()
+	tests := []struct {
+		name        string
+		fetchOffset int64
+		maxBytes    int32
+		wantRecords []byte
+		wantHigh    int64
+	}{
+		{name: "before first offset", fetchOffset: 0, maxBytes: 1024, wantRecords: append(append([]byte(nil), first...), second...), wantHigh: 3},
+		{name: "inside first batch", fetchOffset: 1, maxBytes: 1024, wantRecords: append(append([]byte(nil), first...), second...), wantHigh: 3},
+		{name: "second batch", fetchOffset: 2, maxBytes: 1024, wantRecords: second, wantHigh: 3},
+		{name: "after end", fetchOffset: 3, maxBytes: 1024, wantRecords: nil, wantHigh: 3},
+		{name: "batch byte limit", fetchOffset: 0, maxBytes: 61, wantRecords: first, wantHigh: 3},
+		{name: "first batch exceeds limit", fetchOffset: 0, maxBytes: 1, wantRecords: first, wantHigh: 3},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got, highWatermark, err := ReadKafkaRecordBatches(log, test.fetchOffset, test.maxBytes)
+			if err != nil {
+				t.Fatalf("ReadKafkaRecordBatches() error = %v", err)
+			}
+			if !bytes.Equal(got, test.wantRecords) || highWatermark != test.wantHigh {
+				t.Errorf("ReadKafkaRecordBatches() = (%x, %d), want (%x, %d)", got, highWatermark, test.wantRecords, test.wantHigh)
+			}
+		})
+	}
+	emptyPath := filepath.Join(t.TempDir(), "empty.log")
+	emptyLog, err := OpenKafkaPartitionLog(emptyPath)
+	if err != nil {
+		t.Fatalf("OpenKafkaPartitionLog(empty) error = %v", err)
+	}
+	defer emptyLog.file.Close()
+	if records, high, err := ReadKafkaRecordBatches(emptyLog, 0, 0); err != nil || len(records) != 0 || high != 0 {
+		t.Errorf("ReadKafkaRecordBatches(empty) = (%x, %d, %v), want empty bytes, zero high watermark, nil error", records, high, err)
+	}
+}
+
+func TestReadKafkaRecordBatchesRejectsInvalidLogs(t *testing.T) {
+	if records, high, err := ReadKafkaRecordBatches(nil, 0, 1); records != nil || high != 0 || err == nil {
+		t.Errorf("ReadKafkaRecordBatches(nil) = (%x, %d, %v), want nil-log error", records, high, err)
+	}
+	valid := kafkaBatchForTest(0, 0, 1)
+	invalidLength := append([]byte(nil), valid...)
+	binary.BigEndian.PutUint32(invalidLength[8:12], 48)
+	truncatedBatch := append([]byte(nil), valid...)
+	truncatedBatch[11] = 50
+	wrongMagic := append([]byte(nil), valid...)
+	wrongMagic[16] = 1
+	badCRC := append([]byte(nil), valid...)
+	badCRC[21] ^= 1
+	negativeBase := kafkaBatchForTest(-1, 0, 1)
+	negativeDelta := kafkaBatchForTest(0, -1, 1)
+	negativeCount := kafkaBatchForTest(0, 0, -1)
+	overflow := kafkaBatchForTest(int64(^uint64(0)>>1), 1, 1)
+	tests := []struct {
+		name string
+		data []byte
+	}{
+		{name: "truncated header", data: valid[:60]},
+		{name: "invalid batch length", data: invalidLength},
+		{name: "truncated batch", data: truncatedBatch},
+		{name: "wrong magic", data: wrongMagic},
+		{name: "invalid crc", data: badCRC},
+		{name: "negative base offset", data: negativeBase},
+		{name: "negative offset delta", data: negativeDelta},
+		{name: "negative record count", data: negativeCount},
+		{name: "offset overflow", data: overflow},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			log := kafkaLogForTest(t, test.data)
+			defer log.file.Close()
+			if _, _, err := ReadKafkaRecordBatches(log, 0, 1024); err == nil {
+				t.Error("ReadKafkaRecordBatches() error = nil, want malformed-log error")
+			}
+		})
+	}
+	log := kafkaLogForTest(t, valid)
+	defer log.file.Close()
+	if _, _, err := ReadKafkaRecordBatches(log, -1, 10); err == nil {
+		t.Error("ReadKafkaRecordBatches(negative offset) error = nil, want error")
+	}
+	if _, _, err := ReadKafkaRecordBatches(log, 0, -1); err == nil {
+		t.Error("ReadKafkaRecordBatches(negative max bytes) error = nil, want error")
+	}
+	closed := kafkaLogForTest(t, nil)
+	if err := closed.file.Close(); err != nil {
+		t.Fatalf("close fixture: %v", err)
+	}
+	if _, _, err := ReadKafkaRecordBatches(closed, 0, 10); err == nil {
+		t.Error("ReadKafkaRecordBatches(closed) error = nil, want closed-file error")
+	}
+}
+
+func TestReadKafkaRecordBatchesHandlesReadFailures(t *testing.T) {
+	valid := kafkaBatchForTest(0, 0, 1)
+	for _, failOnCall := range []int{1, 2} {
+		t.Run(string(rune('0'+failOnCall)), func(t *testing.T) {
+			log := kafkaLogForTest(t, valid)
+			defer log.file.Close()
+			previous := readKafkaPartitionAt
+			calls := 0
+			readKafkaPartitionAt = func(file *os.File, data []byte, offset int64) (int, error) {
+				calls++
+				if calls == failOnCall {
+					return 0, os.ErrPermission
+				}
+				return file.ReadAt(data, offset)
+			}
+			defer func() { readKafkaPartitionAt = previous }()
+			if _, _, err := ReadKafkaRecordBatches(log, 0, 1024); err == nil {
+				t.Error("ReadKafkaRecordBatches() error = nil, want injected read error")
+			}
+		})
+	}
+	log := kafkaLogForTest(t, valid)
+	defer log.file.Close()
+	previous := copyKafkaBatchChecksum
+	copyKafkaBatchChecksum = func(io.Writer, io.Reader, int64) (int64, error) { return 0, os.ErrPermission }
+	defer func() { copyKafkaBatchChecksum = previous }()
+	if _, _, err := ReadKafkaRecordBatches(log, 0, 1024); err == nil {
+		t.Error("ReadKafkaRecordBatches(checksum error) error = nil, want injected read error")
+	}
+}
+
+func kafkaLogForTest(t *testing.T, data []byte) *KafkaPartitionLog {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "partition.log")
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		t.Fatalf("write Kafka log: %v", err)
+	}
+	log, err := OpenKafkaPartitionLog(path)
+	if err != nil {
+		t.Fatalf("OpenKafkaPartitionLog() error = %v", err)
+	}
+	return log
 }
 
 func kafkaBatchForTest(baseOffset int64, lastOffsetDelta, recordCount int32) []byte {
