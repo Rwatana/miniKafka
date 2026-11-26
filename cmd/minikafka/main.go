@@ -77,6 +77,7 @@ func main() {
 			{APIKey: 1, MinVersion: 2, MaxVersion: 4},
 			{APIKey: 2, MinVersion: 1, MaxVersion: 1},
 			{APIKey: 3, MinVersion: 0, MaxVersion: 1},
+			{APIKey: 10, MinVersion: 1, MaxVersion: 1},
 			{APIKey: 18, MinVersion: 0, MaxVersion: 3},
 		}
 		if err := serveKafka(kafkaListener, 100*1024*1024, supportedAPIs, metadataProvider, brokerInstance.AppendKafkaRecordBatch, brokerInstance.ReadKafkaRecordBatches, brokerInstance.LookupKafkaOffset); err != nil {
