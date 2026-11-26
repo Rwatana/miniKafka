@@ -75,6 +75,64 @@ func TestHandleMetadataRequestV0RejectsInvalidResponse(t *testing.T) {
 	})
 }
 
+func TestHandleMetadataRequestV1(t *testing.T) {
+	broker := MetadataBroker{NodeID: 7, Host: "broker", Port: 9092}
+	topic := MetadataTopic{Name: "orders", Partitions: []MetadataPartition{{PartitionIndex: 0, LeaderID: 7, ReplicaNodes: []int32{7}, ISRNodes: []int32{7}}}}
+	request := metadataRequestFrameV0(3, 1, 42, []byte{0xff, 0xff, 0xff, 0xff})
+	response, err := HandleMetadataRequestV1(request, 1024, []MetadataBroker{broker}, []MetadataTopic{topic})
+	if err != nil {
+		t.Fatalf("HandleMetadataRequestV1() error = %v", err)
+	}
+	responseBody, err := encodeMetadataResponseV1([]MetadataBroker{broker}, 7, []MetadataTopic{topic})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := metadataExpectedResponseFrame(42, responseBody); !bytes.Equal(response, want) {
+		t.Errorf("response = %x, want %x", response, want)
+	}
+
+	specific := metadataRequestFrameV0(3, 1, 17, []byte{0, 0, 0, 1, 0, 6, 'o', 'r', 'd', 'e', 'r', 's'})
+	response, err = HandleMetadataRequestV1(specific, 1024, []MetadataBroker{broker}, []MetadataTopic{topic})
+	if err != nil {
+		t.Fatalf("HandleMetadataRequestV1(specific) error = %v", err)
+	}
+	if got, want := int32(binary.BigEndian.Uint32(response[4:8])), int32(17); got != want {
+		t.Errorf("correlation ID = %d, want %d", got, want)
+	}
+	missing := metadataRequestFrameV0(3, 1, 18, []byte{0, 0, 0, 1, 0, 4, 'm', 'i', 's', 's'})
+	response, err = HandleMetadataRequestV1(missing, 1024, []MetadataBroker{broker}, []MetadataTopic{topic})
+	if err != nil {
+		t.Fatalf("HandleMetadataRequestV1(missing topic) error = %v", err)
+	}
+	missingBody, err := encodeMetadataResponseV1([]MetadataBroker{broker}, 7, []MetadataTopic{{ErrorCode: 3, Name: "miss"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := metadataExpectedResponseFrame(18, missingBody); !bytes.Equal(response, want) {
+		t.Errorf("missing topic response = %x, want %x", response, want)
+	}
+
+	for _, test := range []struct {
+		name  string
+		frame []byte
+		max   int32
+		broks []MetadataBroker
+	}{
+		{name: "truncated header", frame: []byte{0}, max: 1024},
+		{name: "wrong API key", frame: metadataRequestFrameV0(18, 1, 1, []byte{0, 0, 0, 0}), max: 1024},
+		{name: "wrong API version", frame: metadataRequestFrameV0(3, 2, 1, []byte{0, 0, 0, 0}), max: 1024},
+		{name: "malformed body", frame: metadataRequestFrameV0(3, 1, 1, []byte{0, 0}), max: 1024},
+		{name: "invalid response string", frame: request, max: 1024, broks: []MetadataBroker{{Host: "\xff"}}},
+		{name: "response frame limit", frame: request, max: 1},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			if _, err := HandleMetadataRequestV1(test.frame, test.max, test.broks, nil); err == nil {
+				t.Error("HandleMetadataRequestV1() error = nil, want error")
+			}
+		})
+	}
+}
+
 func metadataRequestFrameV0(apiKey, apiVersion int16, correlationID int32, body []byte) []byte {
 	frame := make([]byte, 10, 10+len(body))
 	binary.BigEndian.PutUint16(frame[0:2], uint16(apiKey))
