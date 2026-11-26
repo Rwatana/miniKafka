@@ -117,3 +117,4 @@ being described as behavior from the Node reference.
 | 60 | `kafka.decodeRecordBatchesV2` | Walk a Produce record set's length-delimited magic-v2 batches in order. |
 | 61 | `kafka.encodeProduceResponseV3` | Encode Produce v3 topic and partition outcomes in legacy schema order. |
 | 62 | `kafka.encodeProduceResponseFrameV3` | Add the matching correlation header and bounded size prefix to Produce v3 response bodies. |
+| 63 | `storage.OpenKafkaPartitionLog` | Open an appendable binary Kafka partition log alongside the reference JSON log. |
