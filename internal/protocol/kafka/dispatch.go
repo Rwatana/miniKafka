@@ -12,7 +12,17 @@ func HandleKafkaRequest(requestFrame []byte, maxFrameBytes int32, supportedAPIs 
 	}
 	switch apiKey := int16(binary.BigEndian.Uint16(requestFrame[:2])); apiKey {
 	case 3:
-		return HandleMetadataRequestV0(requestFrame, maxFrameBytes, brokers, topics)
+		if len(requestFrame) < 4 {
+			return nil, fmt.Errorf("dispatch Kafka Metadata request: frame is %d bytes, want API version", len(requestFrame))
+		}
+		switch apiVersion := int16(binary.BigEndian.Uint16(requestFrame[2:4])); apiVersion {
+		case 0:
+			return HandleMetadataRequestV0(requestFrame, maxFrameBytes, brokers, topics)
+		case 1:
+			return HandleMetadataRequestV1(requestFrame, maxFrameBytes, brokers, topics)
+		default:
+			return nil, fmt.Errorf("dispatch Kafka Metadata request: unsupported API version %d", apiVersion)
+		}
 	case 0:
 		var appendBatch KafkaBatchAppender
 		if len(produceAppenders) > 0 {
