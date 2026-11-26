@@ -11,7 +11,8 @@ and carries a timestamp for each partition.
 The [Kafka 4.4 protocol guide](https://kafka.apache.org/44/design/protocol/)
 defines ListOffsets API key 2, v1 as a replica ID followed by topics containing
 partition indexes and INT64 timestamps. A normal consumer uses replica ID -1;
-timestamps -2 and -1 identify latest and earliest offsets.
+timestamp -2 requests the earliest offset, while -1 requests the latest offset.
+Non-negative timestamps request the first matching record.
 
 ## Go design
 
